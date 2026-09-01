@@ -1,0 +1,40 @@
+{
+  "id": "/pegboard/",
+  "name": "PEG BOARD",
+  "short_name": "PEG BOARD",
+  "description": "レイヤー式の非破壊画像編集アプリ",
+  "start_url": "/pegboard/",
+  "scope": "/pegboard/",
+  "display": "standalone",
+  "background_color": "#22272B",
+  "theme_color": "#22272B",
+  "dark_theme_color": "#22272B",
+  "dark_background_color": "#22272B",
+  "icons": [
+    {
+      "src": "/pegboard/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pegboard/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "share_target": {
+    "action": "/pegboard/",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "image",
+          "accept": ["image/jpeg", "image/png", "image/gif", "image/webp"]
+        }
+      ]
+    }
+  }
+}
