@@ -19,7 +19,7 @@
      PWA（v200で追加）
      app-version はデプロイのたびに上げること。末尾の更新チェックがこの値を見ている。
      ══════════════════════════════ -->
-<meta name="app-version" content="v200">
+<meta name="app-version" content="v212">
 <meta name="theme-color" content="#22272B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -986,13 +986,28 @@
      ・色は黒系で固定（v173）。v172は裏の明暗を見て白地／黒地を入れ替えていたが、
        マット（--canvas-bg #757575）の上では白地に転ぶので、[[peg-picto]] と同じ
        黒地・白文字に統一した（PEGの指定）。判定の処理そのものを外してある。 */
-  #canvasInfo, #modeBadge{
+  #canvasInfo, #modeBadge, #selInfo{
     position:absolute; bottom:6px; z-index:7;
     font-size:10px; padding:3px 8px; border-radius:4px;
     pointer-events:none; white-space:nowrap;
     background:rgba(0,0,0,.55); color:rgba(255,255,255,.7);
   }
-  #canvasInfo{ right:8px; }
+  /* ── v202：右下のバッジは2つを縦に積む形にした（v201の「1つのバッジに2行」から変更）。
+     入れ物 #infoBadges を右下に固定し、中の2つは position:static にして
+     縦に並べる。上が選択中の画像の実寸 #selInfo、下がキャンバスの寸法 #canvasInfo。
+     ・align-items:flex-end … 桁数の違う2つが右端でそろう。
+     ・gap … バッジ同士のすき間。くっつくと1つの箱に見えてしまうため空けている。
+     ・隠れているバッジは display:none になるので、1つだけのときは
+       そのぶん詰まって今までと同じ位置に出る（高さの計算は不要）。 */
+  #infoBadges{
+    position:absolute; right:8px; bottom:6px; z-index:7;
+    display:flex; flex-direction:column; align-items:flex-end; gap:4px;
+    pointer-events:none;
+  }
+  #canvasInfo, #selInfo{ position:static; bottom:auto; right:auto; }
+#selInfo{ padding-top:2px; padding-bottom:4px; }
+#canvasInfo{ padding-top:3.5px; padding-bottom:2.5px; }
+
   /* ── v175：モードバッジ（要望H）───────────────────────────────
      [[peg-picto]] は左下に画面名のバッジ（.mode-badge）を出していて、右下のサイズ表示と
      対になっている。ボードもそれに揃えた。見た目はサイズ表示とまったく同じ。
@@ -1089,8 +1104,13 @@
       <textarea id="textInput" rows="1"></textarea>
     </div>
 
-    <!-- v172：キャンバスサイズのバッジ（右下）。中身は updateInfoBadge() が入れる。 -->
-    <div id="canvasInfo" hidden></div>
+    <!-- v172：キャンバスサイズのバッジ（右下）。中身は updateInfoBadge() が入れる。
+         v202：選択中の画像の実寸を出すバッジ #selInfo を上に足し、2つを縦に積む
+               入れ物 #infoBadges で束ねた。バッジ1つに2行を詰めるのはやめている。 -->
+    <div id="infoBadges">
+      <div id="selInfo" hidden></div>
+      <div id="canvasInfo" hidden></div>
+    </div>
     <!-- v175：モードバッジ（左下）。中身は updateModeBadge() が入れる。 -->
     <div id="modeBadge" hidden></div>
   </div>
@@ -1276,43 +1296,129 @@
     position:fixed; left:0; right:0; bottom:var(--pbar-h); z-index:80;
     pointer-events:none; display:flex; justify-content:center;
   }
-  .bpanel-wrap{ width:calc(100% - 24px); max-width:520px; pointer-events:auto; }
+  /* ★v206：ピクトと同じ左右30pxの空き。最大幅もピクトに合わせて540px。 */
+  .bpanel-wrap{ width:calc(100% - 60px); max-width:540px; pointer-events:auto; }
+  /* ★v206：ピクトに合わせて明暗を入れ替えた。
+     ピクトは「本体が濃い(#222)／タブ帯が明るい(#2c2c2c)」で、選ばれているタブだけが
+     本体と同じ濃さになって地続きに見える作り。ボードは逆に塗ってあったので入れ替える。
+     落ち影はピクトには無いので外した。 */
+  /* ★v209：高さの決め方を「410px固定」から「410pxを下限にした伸びる高さ」に変えた。
+     ピクトの410pxはピクトの中身に合わせて決まった数字で、ボードは履歴が2行あるぶん
+     中身が縦に多い。固定にすると数px溢れただけでスクロールが出て、そのたびに
+     どこかの余白を削る作業が要る。下限にしておけば、見た目は410pxのまま揃い、
+     入りきらないときだけ下へ伸びてスクロールが出ない。
+     端末の文字サイズ設定を大きくしている場合にも効く。 */
   .bpanel-body{
-    background:var(--bar2); border:1px solid var(--line); border-bottom:none;
+    background:var(--bar); border:1px solid var(--line); border-bottom:none;
     border-radius:14px 14px 0 0; overflow:hidden; display:flex; flex-direction:column;
-    box-shadow:0 -8px 24px #0005;
+    /* ★v210：高さは起動時に実測した値（--bpanel-h）で3面とも揃える。
+       中身がいちばん多い面（カラー）に合わせるので、どの面でもスクロールは出ず、
+       ブラシ↔消しゴム、サイズ↔カラーのどちらを行き来しても高さが動かない。
+       実測が効かなかった場合の保険として410pxを既定値に置いてある。 */
+    height:var(--bpanel-h, 410px);
+    max-height:calc(100dvh - var(--pbar-h) - 24px);
   }
-  .bpanel-tabs{ display:flex; background:var(--bar); border-bottom:1px solid var(--line); }
-  .bpanel-tabs .vspace{ width:34px; flex:0 0 auto; border-right:1px solid var(--line); }
+  .bpanel-tabs{
+    display:flex; flex:0 0 auto; background:var(--bar2);
+    border-bottom:1px solid var(--line); border-radius:14px 14px 0 0; overflow:hidden;
+  }
+  .bpanel-tabs .vspace{ width:32px; flex:0 0 auto; border-right:1px solid var(--line); }
   .bpanel-tab{
-    flex:1; padding:11px 6px; font-size:13px; color:var(--text-dim);
-    background:transparent; border:none; border-radius:0; min-height:0;
+    flex:1; padding:10px 6px; font-size:12px; color:var(--text-dim);
+    background:transparent; border:none; border-bottom:2px solid transparent;
+    border-radius:0; min-height:0; transition:all .12s;
   }
-  .bpanel-tab.on{ color:var(--btn-on); background:var(--bar2); font-weight:700; }
-  .bpanel-main{ display:flex; }
-  .bpanel-vtabs{ width:34px; flex:0 0 auto; background:var(--bar); border-right:1px solid var(--line); display:flex; flex-direction:column; }
+  /* ★v206：選ばれているタブは本体と同じ色で塗り、下の境界線を本体の色で上書きして消す。
+     さらに1pxだけ食い込ませて、タブと中身が繋がって見えるようにする（ピクトと同じ作り）。 */
+  .bpanel-tab.on{
+    color:var(--btn-on); background:var(--bar);
+    border-bottom:2px solid var(--bar); margin-bottom:-1px;
+    position:relative; z-index:1;
+  }
+  .bpanel-main{ display:flex; flex:1; overflow:hidden; }
+  .bpanel-vtabs{ width:32px; flex:0 0 auto; background:var(--bar2); border-right:1px solid var(--line); display:flex; flex-direction:column; align-items:center; }
   .bpanel-vtab{
-    flex:1; writing-mode:vertical-rl; text-orientation:mixed; letter-spacing:2px;
+    width:100%; flex:1; display:flex; align-items:center; justify-content:center;
+    writing-mode:vertical-rl; text-orientation:mixed; letter-spacing:2px;
     background:transparent; border:none; border-left:2px solid transparent; border-radius:0;
-    color:var(--text-dim); font-size:11px; min-height:0; padding:10px 0;
+    color:var(--text-dim); font-size:10px; min-height:0; padding:8px 0; transition:all .12s;
   }
-  .bpanel-vtab.on{ color:var(--btn-on); background:var(--bar2); border-left-color:var(--btn-on); }
+  .bpanel-vtab.on{ color:var(--btn-on); background:var(--bar); border-left-color:var(--btn-on); }
   /* ★v165：描線を選んでいる間は種類（通常／万年筆）を変えられない。
      どちらが選ばれているかは見えたままにしたいので、色は残して薄くするだけにする。 */
   .bpanel-vtab:disabled{ opacity:.35; }
   .bpanel-vtab + .bpanel-vtab{ border-top:1px solid var(--line); }
-  .bpanel-content{ flex:1; padding:12px 14px 14px; overflow-y:auto; max-height:68vh; display:grid; }
-  /* 2ページを同じ升目に重ね、表示はvisibilityで切替 → 高さは常に高い方（カラー）に揃う */
-  .bpanel-page{ grid-area:1 / 1; display:flex; flex-direction:column; visibility:hidden; align-self:start; }
-  .bpanel-page.on{ visibility:visible; }
-  .bp-preview{ width:100%; height:84px; border-radius:8px; background:#2a2a30; display:block; margin-bottom:12px; }
+  .bpanel-content{
+    flex:1; min-height:0; padding:12px 14px 14px;
+    overflow-y:auto; overflow-x:hidden; display:flex; flex-direction:column;
+  }
+  /* ★v206：2ページを同じ升目に重ねる作りをやめ、ピクトと同じ display の出し入れに戻した。
+     重ねていたのは「タブを切り替えても高さが跳ねないように」という理由だったが、
+     本体の高さを410pxで固定したので、その心配がなくなったため。
+     ※重ねたままだと、隠れている側（背の高いカラー面）の高さが残って、
+       サイズ面にいるあいだも無用な縦スクロールが出てしまう。 */
+  .bpanel-page{ display:none; flex-direction:column; flex:1; }
+  .bpanel-page.on{ display:flex; }
+  /* ★v207：ピクトと同じ高さ・背景色に。カラー面のプレビューも同じ大きさで揃える。 */
+  .bp-preview{ width:100%; height:105px; border-radius:8px; background:#111; display:block; flex:0 0 auto; margin-bottom:14px; }
   .bp-preview.eraser{ background:#9a9aa0; }
-  .bp-lbl{ font-size:11px; color:var(--text-dim); margin:0 0 5px; }
-  .bp-row{ display:flex; align-items:center; gap:12px; margin-bottom:14px; }
-  .bp-step{ width:40px; min-width:40px; height:40px; padding:0; font-size:20px; background:var(--btn); border-radius:9px; }
+  /* ★v208：消しゴムモーダルは中身が少なく、本体を410pxにしたぶん下側が大きく空いていた。
+     プレビューを縦に広げ（太さの丸も大きく見える）、行の間隔にも余裕を持たせて埋める。 */
+  #eraserPanel .bp-preview{ height:140px; margin-bottom:20px; }
+  #eraserPanel .bp-lbl{ margin-bottom:6px; }
+  #eraserPanel .bp-row{ margin-bottom:24px; }
+  /* 履歴がまだ少ないときも席は空けておく（中身の増減で高さが動かないように） */
+  #eraserPanel .bp-hist{ min-height:44px; }
+  .bp-lbl{ font-size:11px; color:var(--text-dim); display:block; margin:0 0 4px; }
+  .bp-row{ display:flex; align-items:center; gap:18px; margin-bottom:10px; }
+  .bp-row:last-of-type{ margin-bottom:0; }
+  /* サイズ面は、サイズの行と透明度の行の間だけ広く空ける（ピクトと同じ）。
+     ★v208：ピクトの値（上4px・下20px）そのままだと、ボードは履歴が2行あるぶん
+     数pxだけ縦に溢れてスクロールが出た。ここだけ10px詰めて収める。 */
+  #bpPageSize .bp-row.bp-row-top{ margin-top:0; margin-bottom:14px; }
+  .bp-step{
+    width:32px; min-width:32px; height:32px; min-height:32px; padding:0;
+    font-size:18px; line-height:1; background:#444; color:#fff; border-radius:6px;
+  }
+  .bp-step:active{ background:#666; }
+  /* ★v206：ブラシ／消しゴムのモーダルの中のスライダーは、ここまで一切の指定が無く
+     ブラウザ既定の青いスライダーがそのまま出ていた。ピクトと同じ
+     「細いトラック（4px）＋直径20pxの丸いつまみ」に作り替える。
+     ★-webkit-appearance:none を付けて初めて、下地に敷いた色やグラデーションが
+       トラックの色として見えるようになる。Hue の虹も Sat・Bri のグラデーションも
+       元から仕込んであったが、既定の描画に隠されて出ていなかった。 */
+  .bpanel input[type=range]{
+    -webkit-appearance:none; appearance:none;
+    height:4px; border-radius:2px; background:var(--line);
+    outline:none; margin:0; padding:0;
+  }
+  .bpanel input[type=range]::-webkit-slider-runnable-track{
+    -webkit-appearance:none; height:4px; border-radius:2px; background:transparent;
+  }
+  .bpanel input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none;
+    width:20px; height:20px; margin-top:-8px; border-radius:50%;
+    background:var(--btn-on); box-shadow:0 1px 4px rgba(0,0,0,.4);
+  }
+  .bpanel input[type=range]::-moz-range-track{ height:4px; border-radius:2px; background:transparent; }
+  .bpanel input[type=range]::-moz-range-thumb{
+    width:20px; height:20px; border:none; border-radius:50%;
+    background:var(--btn-on); box-shadow:0 1px 4px rgba(0,0,0,.4);
+  }
+  /* カラーのスライダーだけ、つまみをひと回り小さくする（ピクトと同じ） */
+  .bpanel .bpc-srow input[type=range]::-webkit-slider-thumb{ width:16px; height:16px; margin-top:-6px; }
+  .bpanel .bpc-srow input[type=range]::-moz-range-thumb{ width:16px; height:16px; }
   .bp-row input[type=range]{ flex:1; width:auto; }
   .bp-val{ font-size:11px; color:var(--text-dim); width:42px; text-align:right; flex:0 0 auto; }
+  /* ★v207：ブラシモーダルでは数値をスライダーの横に出さず、プレビューの右下へ移した
+     （ピクトと同じ）。席そのものを畳むので、スライダーがその分だけ長くなる。
+     消しゴムモーダル側はまだ手を付けていないので、そちらの数値は今まで通り出る。 */
+  #brushPanel .bp-val,
+  #eraserPanel .bp-val{ display:none; }
   .bp-hist{ display:flex; gap:6px; flex-wrap:wrap; }
+  /* ★v207：サイズ履歴はピクトと同じ「5個ずつの2行固定」。折り返さず、はみ出す分は出さない。 */
+  .bp-hist-section{ margin-top:15px; display:flex; flex-direction:column; gap:6px; }
+  .bp-hist-row{ display:flex; gap:5px; flex-wrap:nowrap; align-items:center; min-height:44px; }
   .bp-hist .chip{
     min-width:44px; height:40px; border-radius:8px; background:var(--btn); border:1px solid var(--line);
     display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--text);
@@ -1320,33 +1426,46 @@
   /* サムネ付き履歴チップ（ブラシ＝現在色 / 消しゴム＝グレー） */
   .bp-size-hist{
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    min-width:46px; height:46px; padding:3px 5px; border-radius:8px;
-    background:var(--btn); border:1px solid var(--line); color:var(--text-dim); flex:0 0 auto;
+    min-width:44px; height:44px; padding:2px 4px; border-radius:8px;
+    background:var(--btn); border:1.5px solid var(--line); color:var(--text-dim); flex:0 0 auto;
+  }
+  /* ★v210：ブラシモーダルの2行は、中の文字（120/100% と 5/100%）の長さで
+     チップの幅が変わり、一段目と二段目で不揃いになっていた。
+     行の幅を5等分した固定幅にして、どの段も同じ大きさに揃える。 */
+  .bp-hist-row .bp-size-hist{
+    width:calc((100% - 20px) / 5); min-width:0; padding:2px 2px; overflow:hidden;
   }
   .bp-size-hist canvas{ border-radius:3px; background:#111; display:block; }
   .bp-size-hist span{ font-size:9px; line-height:1; margin-top:3px; }
   .bp-size-hist:active{ transform:scale(.92); }
   /* カラータブ */
-  #bpColorPreview{ height:58px; }
-  .bpc-top{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
-  .bpc-dot{ width:34px; height:34px; border-radius:8px; border:2px solid var(--line); flex:0 0 auto; }
+  .bpc-top{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .bpc-dot{ width:36px; height:36px; border-radius:8px; border:2px solid var(--line); flex:0 0 auto; }
   /* ★v195（要望N）：値がバラバラのときの見せ方。
      色のチップは単色を出しようがないので斜めストライプ、数値は「複数」の薄い文字にする。 */
   .bp-mixed{ color:var(--text-dim); opacity:.75; }
   .swatch-mixed{
     background:repeating-linear-gradient(45deg, #4a4a4a 0 5px, #2a2a2a 5px 10px) !important;
   }
-  .bpc-hex,.bpc-hsv{ background:var(--bar); border:1px solid var(--line); border-radius:7px; color:var(--text); padding:8px; font-size:12px; font-family:monospace; min-width:0; }
+  /* ★v206：本体の背景を一段濃くしたので、入力欄は一段明るい色に置き換える（ピクトと同じ関係）。 */
+  .bpc-hex,.bpc-hsv{ background:var(--bar2); border:1px solid var(--line); border-radius:7px; color:var(--text); padding:7px 8px; font-size:12px; font-family:monospace; min-width:0; }
   .bpc-hex{ width:82px; flex:0 0 auto; } .bpc-hsv{ width:92px; flex:0 0 auto; }
-  .bpc-eye{ width:38px; min-width:38px; height:38px; padding:0; margin-left:auto; background:var(--btn); border-radius:8px; }
-  .bpc-eye.on{ background:var(--btn-on); color:#13343d; }
-  .bpc-rgb{ display:flex; align-items:center; gap:6px; margin-bottom:10px; }
+  /* ★v206：ピクトと同じ「枠線タイプ」。点灯時は塗りつぶさず、枠と文字が色づく。 */
+  .bpc-eye{
+    width:36px; min-width:36px; height:36px; min-height:36px; padding:0; margin-left:auto;
+    background:var(--bar2); border:2px solid var(--line); border-radius:8px; color:var(--text-dim);
+  }
+  .bpc-eye.on{ border-color:var(--btn-on); color:var(--btn-on); background:rgba(135,185,199,.15); }
+  .bpc-rgb{ display:flex; align-items:center; gap:6px; margin-bottom:14px; }
   .bpc-rgb label{ font-size:11px; color:var(--text-dim); width:12px; text-align:center; }
-  .bpc-rgb input{ background:var(--bar); border:1px solid var(--line); border-radius:6px; color:var(--text); padding:6px; font-size:12px; width:52px; text-align:center; font-family:monospace; }
-  .bpc-srow{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
-  .bpc-srow label{ font-size:11px; color:var(--text-dim); width:26px; flex:0 0 auto; }
+  .bpc-rgb input{ background:var(--bar2); border:1px solid var(--line); border-radius:6px; color:var(--text); padding:5px 6px; font-size:12px; width:48px; text-align:center; font-family:monospace; }
+  .bpc-srow{ display:flex; align-items:center; gap:8px; margin-bottom:18px; }
+  .bpc-srow:last-of-type{ margin-bottom:4px; }
+  .bpc-srow label{ font-size:11px; color:var(--text-dim); width:25px; flex:0 0 auto; }
   .bpc-srow input[type=range]{ flex:1; width:auto; }
-  .bpc-pal{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; min-height:28px; }
+  /* ★v207：パレットは見出しを外して2行を隙間5pxで並べる（上＝お気に入り／下＝履歴）。
+     折り返さないので、増えすぎた分は行の外に出て見えなくなる（ピクトと同じ割り切り）。 */
+  .bpc-pal{ display:flex; gap:5px; flex-wrap:nowrap; align-items:center; margin-bottom:6px; min-height:28px; }
   .bpc-sw{ width:28px; height:28px; border-radius:6px; border:2px solid transparent; flex:0 0 auto; }
   .bpc-sw.on{ border-color:#fff; }
   .bpc-sw.add{ background:var(--btn); border:1.5px dashed var(--line); display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:16px; }
@@ -1393,7 +1512,7 @@
           <div class="bpanel-page on" id="bpPageSize">
             <canvas class="bp-preview" id="bpPreview"></canvas>
             <span class="bp-lbl">サイズ</span>
-            <div class="bp-row">
+            <div class="bp-row bp-row-top">
               <button class="bp-step" id="bpSizeMinus">－</button>
               <input type="range" id="bpSize" min="1" max="120" value="12">
               <button class="bp-step" id="bpSizePlus">＋</button>
@@ -1406,8 +1525,11 @@
               <button class="bp-step" id="bpOpacPlus">＋</button>
               <span class="bp-val" id="bpOpacV">100%</span>
             </div>
-            <span class="bp-lbl">最近のサイズ</span>
-            <div class="bp-hist" id="bpSizeHist"></div>
+            <!-- ★v207：見出しを外し、5個ずつの2行に分けた（ピクトと同じ） -->
+            <div class="bp-hist-section">
+              <div class="bp-hist-row" id="bpSizeHistRow1"></div>
+              <div class="bp-hist-row" id="bpSizeHistRow2"></div>
+            </div>
           </div>
           <!-- カラー -->
           <div class="bpanel-page" id="bpPageColor">
@@ -1428,9 +1550,8 @@
             <div class="bpc-srow"><label>Hue</label><input type="range" id="bpH" min="0" max="360" value="0" style="background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)"></div>
             <div class="bpc-srow"><label>Sat</label><input type="range" id="bpS" min="0" max="100" value="0"></div>
             <div class="bpc-srow"><label>Bri</label><input type="range" id="bpV" min="0" max="100" value="100"></div>
-            <span class="bp-lbl">お気に入り</span>
+            <!-- ★v207：見出し（お気に入り／履歴）は外した。上の行がお気に入り、下の行が履歴 -->
             <div class="bpc-pal" id="bpFav"></div>
-            <span class="bp-lbl">履歴</span>
             <div class="bpc-pal" id="bpColorHist"></div>
           </div>
         </div>
@@ -3138,14 +3259,39 @@ function artboardRect(){
      ピクトと同じ黒地のほうがよいというPEGの判断。判定の処理は丸ごと外した
      （getImageData も走らなくなったので、そのぶん軽くもなっている）。 */
 let _badgeLastText = '';
+let _selBadgeLast  = '';
 function updateInfoBadge(){
-  const el = document.getElementById('canvasInfo');
+  const el  = document.getElementById('canvasInfo');
+  const sEl = document.getElementById('selInfo');
   if(!el) return;
-  if(!state.project){ el.hidden = true; _badgeLastText = ''; return; }
+  if(!state.project){
+    el.hidden = true; _badgeLastText = '';
+    if(sEl){ sEl.hidden = true; _selBadgeLast = ''; }
+    return;
+  }
   const ab  = artboardRect();
   const txt = Math.round(ab.w) + '×' + Math.round(ab.h) + ' px';
   el.hidden = false;
   if(txt !== _badgeLastText){ el.textContent = txt; _badgeLastText = txt; }
+
+  /* ── v201：画像を1つだけ選んでいるときは、その実寸を別のバッジに出す。
+       （v202：1つのバッジに2行ではなく、上に積んだ別のバッジへ変更）
+       ・数字は node.w / node.h ＝ キャンバスのpx。書き出したときの実際のpx数と同じで、
+         画面のズームでは変わらない。
+       ・角ハンドルのドラッグは scaleNodeAbout() が node.w / node.h を直接書き換えて
+         再描画を呼ぶので、この関数が render() のたびに走る作りのまま数値が追随する。
+       ・左右反転は node.flipX の旗で持っていて w が負になることはないが、
+         念のため絶対値を取ってある。
+       ・出すのは「画像を1つだけ」選んだときに限る。ペイント・テキスト・複数選択では
+         このバッジごと消える。 */
+  if(sEl){
+    const sel = (state.selNodes && state.selNodes.length === 1) ? state.selNodes[0] : null;
+    const stxt = (sel && sel.type === 'image' && sel.w != null && sel.h != null)
+      ? '選択中 ' + Math.round(Math.abs(sel.w)) + '×' + Math.round(Math.abs(sel.h)) + ' px'
+      : '';
+    if(stxt !== _selBadgeLast){ sEl.textContent = stxt; _selBadgeLast = stxt; }
+    sEl.hidden = (stxt === '');
+  }
 }
 
 /* ── v175：モードバッジ（要望H）─────────────────────────────
@@ -3404,11 +3550,10 @@ function drawSelectionBox(n){
     ctx.lineTo(c.bl.x, c.bl.y);
     ctx.closePath();
   };
-  // 白フチ（背景に紛れない用）
-  ctx.lineWidth = 4; ctx.strokeStyle = '#ffffffcc';
-  trace(); ctx.stroke();
-  // 階層カラーの点線
-  ctx.lineWidth = 2; ctx.strokeStyle = col; ctx.setLineDash([7,5]);
+  /* ★v204：白い下敷きをやめ、階層カラーの点線1本だけにした。
+     どこが選ばれているかは四隅のハンドルで分かるので、枠そのものは
+     控えめでよい、というPEGの判断。線が細いぶん縁とのズレも出ない。 */
+  ctx.lineWidth = 1; ctx.strokeStyle = col; ctx.setLineDash([7,5]);
   trace(); ctx.stroke();
   ctx.setLineDash([]);
   // 回転モード中の単一選択なら、四隅ハンドルの代わりに回転ハンドルを描く
@@ -3505,10 +3650,8 @@ function drawMultiSelectionBox(){
     ctx.lineTo(c.bl.x, c.bl.y);
     ctx.closePath();
   };
-  // 白フチ（背景に紛れない用）→ 点線、の順は単一選択の枠とまったく同じ
-  ctx.lineWidth = 4; ctx.strokeStyle = '#ffffffcc';
-  trace(); ctx.stroke();
-  ctx.lineWidth = 2; ctx.strokeStyle = col; ctx.setLineDash([7,5]);
+  // ★v204：単一選択の枠と同じく、白い下敷きをやめて点線1本だけにする
+  ctx.lineWidth = 1; ctx.strokeStyle = col; ctx.setLineDash([7,5]);
   trace(); ctx.stroke();
   ctx.setLineDash([]);
   // 回転ハンドル（上辺中央から伸ばした丸）
@@ -3831,10 +3974,16 @@ function toggleGrid(){
 
 // 四辺スナップのON/OFF（二段目のスナップボタン）
 // 段階A：状態フラグとボタン点灯のみ。実際の吸着補正は段階Bで移動処理に入れる。
-function toggleSnap(){
-  state.snapOn = !state.snapOn;
-  const b=document.getElementById('snapToggle');
+function toggleSnap(){ setSnapOn(!state.snapOn); }
+/* ★v204：スナップを指定の状態にして、2つのボタンの点灯もそろえる。
+   ボタンは2か所ある（2段目の #snapToggle と、テキストモードの #ttSnapBtn）。
+   画像を置いたときに強制ONへ戻す用に、切り替えとは別の入口を用意した。 */
+function setSnapOn(v){
+  state.snapOn = !!v;
+  const b = document.getElementById('snapToggle');
   if(b) b.classList.toggle('on', state.snapOn);
+  const t = document.getElementById('ttSnapBtn');
+  if(t) t.classList.toggle('on', state.snapOn);
 }
 
 /* ── v148：書き出しプレビューのON/OFF（二段目のプレビューボタン）──────
@@ -4761,6 +4910,9 @@ function applyTextFormat(node, stateKey, nodeKey, value, opts){
     requestRender();
   }
   refreshTextBars();
+  /* ★v212：テキストの書式はどの入口から変えても必ずここを通る
+     （state[stateKey] を書き換えているのがこの関数だけ）ので、保存はここ1か所。 */
+  saveToolPrefs();
 }
 // v101：mkTextFormatRow() は撤去した。
 //   下部バーに文字書式（色・サイズ・書体・太字・字揃え）を並べるための部品だったが、
@@ -6020,6 +6172,9 @@ function addImageObject(dataURL, isBackground){
       currentLayer().children.push(node);
       markDirty(); pushUndo();
       selectNode(node);
+      // ★v204：画像を置いた直後は必ず四辺スナップON。置いてすぐ縁に合わせる
+      //   使い方が多いため、直前に自分でOFFにしていてもここで戻す。
+      setSnapOn(true);
     }
     requestRender();
   };
@@ -8633,17 +8788,22 @@ let canvasResizeDrag = null;  // v122：キャンバス枠ドラッグ中の情�
 let guideDrag = null;
 
 // ── 拡大縮小ハンドル（単一選択時のみ） ──────────────
+// ★v204：選択枠をオブジェクトの外側へ広げる幅（画面px）。0＝輪郭の真上に線が乗る。
+const SEL_PAD_PX = 0;
 const HANDLE_HIT = 22;    // 角ハンドルのタップ判定半径（画面px・指で押しやすい広さ）
 const SCALE_MIN_PX = 8;   // 縮小の下限：bboxの短辺がこのワールドpxを下回らない
 const SCALE_MAX = 60;     // 拡大の上限倍率（暴走防止）
 const OPP = { tl:'br', tr:'bl', bl:'tr', br:'tl' };  // 対角の角
 
-// 選択枠4隅の「画面座標」を返す（drawSelectionBoxと同じ位置・同じpad=3）。
-// 回転していれば四隅も中心まわりに回す。
+/* 選択枠4隅の「画面座標」を返す（drawSelectionBoxと同じ位置）。
+   回転していれば四隅も中心まわりに回す。
+   ★v204：外側への広げ幅（SEL_PAD_PX）を3→0にした。3pxぶん外に出していたうえ、
+     枠の白い下敷き（4px）が中心から2pxはみ出すので、キャンバスの縁にぴったり
+     吸着させても枠だけが外へ膨らんで見えていた。いまは枠の線が縁の真上に乗る。 */
 function handleCornersScreen(n){
   const b = nodeBBox(n);
   if(b.w===0 && b.h===0) return null;
-  const padW = 3 / state.view.scale;          // 画面3px相当をワールドへ換算
+  const padW = SEL_PAD_PX / state.view.scale;          // 画面px相当をワールドへ換算
   const x0 = b.x - padW,        y0 = b.y - padW;
   const x1 = b.x + b.w + padW,  y1 = b.y + b.h + padW;
   const cx = b.x + b.w/2, cy = b.y + b.h/2;   // padは左右対称なので中心は不変
@@ -8665,10 +8825,10 @@ function multiRotBox(){
   return (state._mrotDelta ? state._mrotBox : selectionBBox(state.selNodes));
 }
 // 全体の枠の四隅（画面座標）。deg は「モードに入ってからの相対角度」。
-//   単一選択の handleCornersScreen() と同じく pad=3px ぶん外側に取る。
+//   単一選択の handleCornersScreen() と同じ広げ幅（SEL_PAD_PX）を使う。
 function multiCornersScreen(box, deg){
   if(!box) return null;
-  const padW = 3 / state.view.scale;             // 画面3px相当をワールドへ換算
+  const padW = SEL_PAD_PX / state.view.scale;    // 画面px相当をワールドへ換算
   const x0 = box.x - padW,           y0 = box.y - padW;
   const x1 = box.x + box.w + padW,   y1 = box.y + box.h + padW;
   const cx = box.x + box.w/2, cy = box.y + box.h/2;   // 回転の軸＝全体の中心
@@ -11189,6 +11349,87 @@ let sizeHist  = normSizeHist(lsGet(LS_SHIST, [{size:3,opac:1},{size:6,opac:1},{s
 let eraseHist = (lsGet(LS_EHIST, [16,30,60])||[]).map(n=>Math.round(+n)).filter(n=>n>0);
 let pickHSV   = { h:0, s:0, v:0 };
 
+/* ── ★v212：前回使っていた設定を覚えておく ────────────────────
+   お気に入りや履歴と同じ localStorage を使う。項目ごとにキーを分けず、
+   ひとかたまりにして1つのキー（LS_PREFS）へ入れる。
+
+   ・書き込み … 値が変わってから0.4秒待って1回（saveToolPrefs）。
+                指でスライダーをなぞる間に何十回も書かないための待ち。
+                加えて、アプリを離れるときにも書く（下の visibilitychange / pagehide）。
+   ・読み込み … このすぐ下で1回だけ（restoreToolPrefs）。
+   ・localStorage には文字列しか入らないので、古い版の値や壊れた値が
+     紛れ込むことがある。1項目ずつ型と範囲を確かめて、駄目な項目だけ
+     今までの既定値のままにしている（アプリが落ちないようにするため）。 */
+const LS_PREFS = 'peglayer_tool_prefs';
+
+// 値を確かめる小道具。3つとも「駄目なら null を返す」で揃えてある。
+function prefHex(v){ return (typeof v==='string' && /^#[0-9a-fA-F]{6}$/.test(v)) ? v.toLowerCase() : null; }
+function prefNum(v, lo, hi){ const n=+v; return (Number.isFinite(n) && n>=lo && n<=hi) ? n : null; }
+function prefIn(v, list){ return list.indexOf(v)>=0 ? v : null; }
+
+// いまの設定を1つの塊にまとめる
+function readToolPrefs(){
+  return {
+    paintColor:     state.paintColor,
+    paintSize:      state.paintSize,
+    paintOpacity:   state.paintOpacity,
+    paintBrush:     state.paintBrush,
+    eraseSize:      state.eraseSize,
+    textColor:      state.textColor,
+    textSize:       state.textSize,
+    textFontKey:    state.textFontKey,
+    textBold:       state.textBold,
+    textAlign:      state.textAlign,
+    textLineHeight: state.textLineHeight,
+    textBgColor:    state.textBgColor,
+    textBgAlpha:    state.textBgAlpha,
+    textBgPad:      state.textBgPad,
+    textBgRadius:   state.textBgRadius,
+  };
+}
+let _prefsTimer = 0;
+function saveToolPrefs(){
+  if(_prefsTimer) clearTimeout(_prefsTimer);
+  _prefsTimer = setTimeout(()=>{ _prefsTimer = 0; lsSet(LS_PREFS, readToolPrefs()); }, 400);
+}
+function saveToolPrefsNow(){
+  if(_prefsTimer){ clearTimeout(_prefsTimer); _prefsTimer = 0; }
+  lsSet(LS_PREFS, readToolPrefs());
+}
+function restoreToolPrefs(){
+  const p = lsGet(LS_PREFS, null);
+  if(!p || typeof p !== 'object') return;
+  let v;
+  // ペイント
+  if((v=prefHex(p.paintColor))                          !== null) state.paintColor    = v;
+  if((v=prefNum(p.paintSize, 1, 2000))                  !== null) state.paintSize     = v;
+  if((v=prefNum(p.paintOpacity, 0.05, 1))               !== null) state.paintOpacity  = v;
+  if((v=prefIn(p.paintBrush, ['pen','marker']))         !== null) state.paintBrush    = v;
+  if((v=prefNum(p.eraseSize, 6, 120))                   !== null) state.eraseSize     = v;
+  // テキスト
+  if((v=prefHex(p.textColor))                           !== null) state.textColor     = v;
+  if((v=prefNum(p.textSize, TEXT_SIZE_MIN, TEXT_SIZE_MAX)) !== null) state.textSize   = v;
+  if((v=prefIn(p.textFontKey, TEXT_FONTS.map(f=>f.key)))!== null) state.textFontKey   = v;
+  if(typeof p.textBold === 'boolean')                             state.textBold      = p.textBold;
+  if((v=prefIn(p.textAlign, ['left','center','right'])) !== null) state.textAlign     = v;
+  if((v=prefNum(p.textLineHeight, TEXT_LH_MIN, TEXT_LH_MAX)) !== null) state.textLineHeight = v;
+  // 背景ボックスの色は「背景なし（null）」も正しい値なので、先に null を見る
+  if(p.textBgColor === null)                                      state.textBgColor   = null;
+  else if((v=prefHex(p.textBgColor))                    !== null) state.textBgColor   = v;
+  if((v=prefNum(p.textBgAlpha, 0, 1))                   !== null) state.textBgAlpha   = v;
+  if((v=prefNum(p.textBgPad, TEXT_PAD_MIN, TEXT_PAD_MAX))       !== null) state.textBgPad    = v;
+  if((v=prefNum(p.textBgRadius, TEXT_RADIUS_MIN, TEXT_RADIUS_MAX)) !== null) state.textBgRadius = v;
+  /* カラー面のHue/Sat/Briのつまみは pickHSV を見ている。
+     色だけ戻してここを直さないと、つまみが全部左端に寄ったまま開く。 */
+  const rgb = hexToRgb(state.paintColor);
+  if(rgb) pickHSV = rgbToHsv(rgb.r, rgb.g, rgb.b);
+}
+restoreToolPrefs();
+/* 取りこぼしの保険。別のアプリへ切り替えた瞬間と、閉じる瞬間に書いておく。
+   0.4秒の待ちの最中にアプリを離れても、ここで確実に残る。 */
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) saveToolPrefsNow(); });
+window.addEventListener('pagehide', saveToolPrefsNow);
+
 // ---- ツールUIの切り替え（ペイント時は専用バー、その他はサブツールバー）----
 function updateToolUI(){
   /* ★v133：モード（回転・トリミング・消しゴム・キャンバスツール）に入っている間は、
@@ -11256,27 +11497,39 @@ function panelOpenFor(sub){
   if(sub==='eraseArea') return !document.getElementById('eraserPanel').hidden;
   return false;
 }
+/* ★v211：モーダルの開き方を[[PEGピクト]]と同じ「2回タップ」方式にした。
+     1回目（別のツールから切り替えたとき）… 選択が変わるだけ。モーダルは開かず、
+                                            そのままキャンバスに描ける／消せる
+     2回目（すでに選ばれているボタンをもう一度）… モーダルが開く
+     3回目（開いている状態でもう一度）        … モーダルが閉じる（従来どおり）
+   太さ・色・透明度・消しゴムの大きさは state に持たせてあるので、
+   ここでは触らない。ツールを切り替えても直前の値がそのまま残る。
+   線消しには設定モーダルがないので、何回押しても選択が変わるだけ。 */
 function setPaintSub(sub, fromButton){
-  const wasOpenSame = (state.paintSub===sub) && panelOpenFor(sub);
+  const sameBtn   = (state.paintSub === sub);          // 今まさに選ばれているボタンを押したか
+  const wasOpen   = panelOpenFor(sub);                 // そのツールのモーダルが開いていたか
+  const openPanel = fromButton && sameBtn && !wasOpen; // 開くのはこの条件のときだけ
   state.paintSub = sub;
   setEyedrop(null);   // v107
   if(sub==='draw'){
     document.getElementById('eraserPanel').hidden=true;
-    if(fromButton && wasOpenSame){ document.getElementById('brushPanel').hidden=true; }
-    else {
+    if(openPanel){
       document.getElementById('brushPanel').hidden=false;
       refreshBrushPanel();
       requestAnimationFrame(()=>{ drawSampleStroke(document.getElementById('bpPreview')); drawSampleStroke(document.getElementById('bpColorPreview')); });
+    } else {
+      document.getElementById('brushPanel').hidden=true;
     }
   } else if(sub==='eraseArea'){
     document.getElementById('brushPanel').hidden=true;
-    if(fromButton && wasOpenSame){ document.getElementById('eraserPanel').hidden=true; }
-    else {
+    if(openPanel){
       document.getElementById('eraserPanel').hidden=false;
       document.getElementById('epSize').value=Math.round(state.eraseSize);
       document.getElementById('epSizeV').textContent=Math.round(state.eraseSize);
       renderEraseHist();
       requestAnimationFrame(drawEraserPreview);
+    } else {
+      document.getElementById('eraserPanel').hidden=true;
     }
   } else { // eraseLine
     document.getElementById('brushPanel').hidden=true;
@@ -11302,6 +11555,9 @@ function refreshPaintBar(){
     +' / '+(mx.size ? '—' : Math.round(state.paintSize))
     +' / '+(mx.opacity ? '—' : Math.round(state.paintOpacity*100)+'%');
   document.getElementById('pbAreaSub').textContent='サイズ '+Math.round(state.eraseSize);
+  /* ★v212：ペイントの設定（色・太さ・透明度・種類・エリア消しの大きさ）は
+     どこをいじっても必ずここを通るので、保存のきっかけをここ1か所に置く。 */
+  saveToolPrefs();
 }
 
 /* ── 選択中の描線へブラシ設定を反映（v165・要望E → v194で複数選択に対応・要望N）──
@@ -11746,6 +12002,60 @@ function _prepCanvas(cv){
   if(cv.width!==w)cv.width=w; if(cv.height!==h)cv.height=h;
   return cv.getContext('2d');
 }
+/* ★v207：プレビューの右下に「size 12 / 100%」と薄く描く（ピクトと同じ）。
+   スライダー横の数値の席を畳んだので、数値の置き場はここ1か所になる。
+   値がバラバラのときは、その項目だけ「複数」と出す。 */
+function _bpPreviewLabel(c,w,h){
+  const szTxt = state.brushMixed.size ? '複数' : Math.round(state.paintSize);
+  const opTxt = state.brushMixed.opacity ? '複数' : Math.round(state.paintOpacity*100)+'%';
+  c.save();
+  c.fillStyle='rgba(255,255,255,0.4)';
+  c.font=Math.round(10*DPR)+'px sans-serif';
+  c.textAlign='right'; c.textBaseline='bottom';
+  c.fillText('size '+szTxt+' / '+opTxt, w-6*DPR, h-4*DPR);
+  c.restore();
+}
+/* ★v210：ブラシ／消しゴムのモーダルの高さを実測して、3面とも同じ高さに揃える。
+   中身がいちばん縦に長い面（ふつうはカラー面）を測り、その値を --bpanel-h に入れる。
+   隠れている面は display:none で測れないので、一時的に .on を付け替えて測っている
+   （同じ処理の中で元に戻すので、画面には出ない）。
+   端末の文字サイズ設定でも高さは変わるため、決め打ちの数字ではなく実測にした。 */
+function syncBpanelHeight(){
+  let need = 410;
+  ['brushPanel','eraserPanel'].forEach(id=>{
+    const p=document.getElementById(id); if(!p) return;
+    const body=p.querySelector('.bpanel-body');
+    const tabs=p.querySelector('.bpanel-tabs');
+    const content=p.querySelector('.bpanel-content');
+    if(!body||!content) return;
+    const wasHidden=p.hidden, prevVis=p.style.visibility, prevH=body.style.height;
+    if(wasHidden){ p.style.visibility='hidden'; p.hidden=false; }
+    body.style.height='auto';
+    const cs=getComputedStyle(content);
+    const padV=parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom);
+    const pages=[...p.querySelectorAll('.bpanel-page')];
+    let onIdx=pages.findIndex(x=>x.classList.contains('on')); if(onIdx<0) onIdx=0;
+    pages.forEach(pg=>{
+      pages.forEach(q=>q.classList.remove('on'));
+      pg.classList.add('on');
+      const h=(tabs?tabs.offsetHeight:0)+pg.scrollHeight+padV+2;
+      if(h>need) need=Math.ceil(h);
+    });
+    pages.forEach((q,i)=>q.classList.toggle('on', i===onIdx));
+    body.style.height=prevH;
+    if(wasHidden){ p.hidden=true; p.style.visibility=prevVis; }
+  });
+  document.documentElement.style.setProperty('--bpanel-h', need+'px');
+}
+let _bpHeightTimer=null;
+window.addEventListener('load', ()=>{
+  syncBpanelHeight();
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(syncBpanelHeight);
+});
+window.addEventListener('resize', ()=>{
+  clearTimeout(_bpHeightTimer);
+  _bpHeightTimer=setTimeout(syncBpanelHeight, 200);
+});
 function drawSampleStroke(cv){
   if(!cv) return;
   const c=_prepCanvas(cv); const w=cv.width, h=cv.height;
@@ -11759,12 +12069,23 @@ function drawSampleStroke(cv){
     c.textAlign='center'; c.textBaseline='middle';
     c.fillText('複数選択中', w/2, h/2);
     c.restore();
+    _bpPreviewLabel(c,w,h);
     return;
   }
   c.save();
   c.globalAlpha = (state.paintOpacity==null)?1:state.paintOpacity;
-  const midY=h/2, x0=w*0.12, x1=w*0.88;
-  const size=clamp(state.paintSize*DPR, 2, h*0.66);
+  const midY=h/2;
+  /* ★v210：太さの出し方を直した。
+     これまでは「サイズ1＝画面の1ドット」で描いていたため、S23のような高精細な画面では
+     実際の3倍の太さで描かれ、サイズ70あたりでプレビューの上限に達して、
+     それ以上いくら太くしても見た目が変わらなくなっていた。
+     ピクトと同じく、キャンバスの表示倍率（state.view.scale）を掛けて
+     「実際に画面で見える太さ」で描く。 */
+  const dispZoom = (state.view && state.view.scale > 0) ? state.view.scale : 1;
+  const size=clamp(state.paintSize*dispZoom*DPR, 2, h*0.8);
+  /* 線の両端は、太いときに丸い先端が枠からはみ出して切れないよう、太さの分だけ内側に寄せる */
+  const pad = size/2 + 4*DPR;
+  const x0=Math.max(w*0.12, pad), x1=Math.min(w*0.88, w-pad);
   if(state.paintBrush==='pen'){
     const n=44, pts=[];
     // 本番の computePenPoints() と同じ考え方で入り／抜きを付ける
@@ -11772,7 +12093,9 @@ function drawSampleStroke(cv){
     const taperIn  = Math.min(len*PEN_TAPER_IN_FRAC,  size*PEN_TAPER_IN_CAP);
     const taperOut = Math.min(len*PEN_TAPER_OUT_FRAC, size*PEN_TAPER_OUT_CAP);
     for(let i=0;i<=n;i++){
-      const t=i/n, x=x0+(x1-x0)*t, y=midY+Math.sin(t*Math.PI*1.3)*h*0.12;
+      /* ★v207：ピクトのプレビューは水平の直線なので、上下のうねりをやめた。
+         入り／抜きは線に沿った距離で付けているので、直線でもそのまま出る。 */
+      const t=i/n, x=x0+(x1-x0)*t, y=midY;
       const dStart = len*t, dEnd = len*(1-t);
       const uIn = (taperIn > 0 && dStart < taperIn) ? (1 - dStart/taperIn) : 0;
       const fs = (uIn > 0) ? (1 + (PEN_TIP_IN - 1) * Math.pow(uIn, PEN_HEAD_CURVE)) : 1;
@@ -11783,11 +12106,11 @@ function drawSampleStroke(cv){
     c.fillStyle=state.paintColor; strokePenPathPts(c, pts);
   } else {
     c.strokeStyle=state.paintColor; c.lineWidth=size; c.lineCap='round'; c.lineJoin='round';
-    c.beginPath(); c.moveTo(x0,midY);
-    c.bezierCurveTo(w*0.4,midY-h*0.2, w*0.6,midY+h*0.2, x1,midY);
+    c.beginPath(); c.moveTo(x0,midY); c.lineTo(x1,midY);
     c.stroke();
   }
   c.restore();
+  _bpPreviewLabel(c,w,h);
 }
 
 function drawEraserPreview(){
@@ -11797,6 +12120,14 @@ function drawEraserPreview(){
   const r=clamp(state.eraseSize*DPR/2, 3, h*0.4);
   c.fillStyle='#3a3a40'; c.beginPath(); c.arc(w/2,h/2,r,0,Math.PI*2); c.fill();
   c.lineWidth=2*DPR; c.strokeStyle='#fff'; c.stroke();
+  /* ★v208：太さの数値はスライダーの横から、ここ（右下）へ移した。
+     ブラシ側と同じ置き方。下地が明るいグレーなので、文字は白ではなく黒の薄いもので描く。 */
+  c.save();
+  c.fillStyle='rgba(0,0,0,0.45)';
+  c.font=Math.round(10*DPR)+'px sans-serif';
+  c.textAlign='right'; c.textBaseline='bottom';
+  c.fillText('size '+Math.round(state.eraseSize), w-6*DPR, h-4*DPR);
+  c.restore();
 }
 
 // ---- 履歴・お気に入り ----
@@ -11821,9 +12152,12 @@ function makeHistChip(opts){
   return chip;
 }
 function renderSizeHist(){
-  const wrap=document.getElementById('bpSizeHist'); if(!wrap) return;
-  wrap.innerHTML='';
-  sizeHist.forEach(it=>{
+  /* ★v207：5個ずつの2行に分けて並べる（ピクトと同じ）。11個目以降は元から持っていない。 */
+  const row1=document.getElementById('bpSizeHistRow1');
+  const row2=document.getElementById('bpSizeHistRow2');
+  if(!row1||!row2) return;
+  row1.innerHTML=''; row2.innerHTML='';
+  sizeHist.forEach((it,idx)=>{
     const chip=makeHistChip({
       size:it.size, opac:it.opac, color:state.paintColor,
       label: it.size+'/'+Math.round(it.opac*100)+'%',
@@ -11836,7 +12170,7 @@ function renderSizeHist(){
       applyBrushToSelection('size');
       applyBrushToSelection('opacity');
     });
-    wrap.appendChild(chip);
+    (idx<5 ? row1 : row2).appendChild(chip);
   });
 }
 function renderEraseHist(){
