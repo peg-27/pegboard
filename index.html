@@ -1311,13 +1311,10 @@
   .bpanel-body{
     background:var(--bar); border:1px solid var(--line); border-bottom:none;
     border-radius:14px 14px 0 0; overflow:hidden; display:flex; flex-direction:column;
-    /* ★v210：高さは起動時に実測した値（--bpanel-h）で3面とも揃える。
-       中身がいちばん多い面（カラー）に合わせるので、どの面でもスクロールは出ず、
-       ブラシ↔消しゴム、サイズ↔カラーのどちらを行き来しても高さが動かない。
-       実測が効かなかった場合の保険として410pxを既定値に置いてある。 */
-    height:var(--bpanel-h, 410px);
-    /* ★v211：実測した固定値をやめ、「410pxを下限に、中身が多ければ伸びる」に戻す。
-       履歴チップは使ううちに増えるので、起動時に測った高さでは足りなくなる。 */
+    /* ★v211：高さは「410pxを下限に、中身が多ければ伸びる」。
+       履歴チップは使ううちに増えるので、起動時に測った固定値では足りなくなる。
+       ★v214：v210で入れた起動時の実測（syncBpanelHeight）は撤去した。
+       --bpanel-h はもう誰も設定しないので、下の既定値410pxが下限として効く。 */
     height:auto;
     min-height:var(--bpanel-h, 410px);
     max-height:calc(100dvh - var(--pbar-h) - 24px);
@@ -1423,8 +1420,6 @@
      （ピクトと同じ）。席そのものを畳むので、スライダーがその分だけ長くなる。
      消しゴムモーダル側はまだ手を付けていないので、そちらの数値は今まで通り出る。 */
   #brushPanel .bp-val,
-  #eraserPanel .bp-val{ display:none; }
-#brushPanel .bp-val,
   #eraserPanel .bp-val{ display:none; }
 
   /* ★v211：ブラシモーダルのプレビュー上の空きを12px→5pxに詰める。
@@ -10162,6 +10157,7 @@ async function saveToLibrary(){
     await idbPut('projects', obj);
     state.dirty=false;
     state.savedToLibrary = true;   // ★v159：これ以降は「上書き保存」が使える
+    markSessionClean();            // ★v215：保存して区切りが付いた
     toast('ライブラリに保存しました');
     return true;   // 呼び出し側（切り替え前の保存）が成否を見られるようにする
   }catch(err){ toast('保存に失敗しました'); console.error(err); return false; }
@@ -10339,6 +10335,7 @@ async function exportImage(fmt, quality){
       if(!blob){ toast('書き出しに失敗しました'); return; }
       try{
         await writeBlob(target, blob, filename);
+        markSessionClean();   // ★v215：書き出して区切りが付いた
         toast(isJpeg ? 'JPEGで書き出しました' : 'PNGで書き出しました');
       }catch(err){ console.error(err); toast('書き出しに失敗しました'); }
     }, mime, isJpeg ? q : undefined);
@@ -10397,6 +10394,7 @@ async function exportFile(){
   const blob=new Blob([JSON.stringify(obj)],{type:'application/json'});
   try{
     await writeBlob(target, blob, filename);
+    markSessionClean();   // ★v215：書き出して区切りが付いた
     toast('ファイルに書き出しました');
   }catch(err){ console.error(err); toast('書き出しに失敗しました'); }
 }
@@ -10414,6 +10412,22 @@ function importProjectObj(obj){
 /* ══════════════════════════════
    #AUTOSAVE  自動保存
    ══════════════════════════════ */
+/* ★v215：前回どういう終わり方をしたかを localStorage に覚えておく。
+   起動のたびに復元を聞かれるのをやめるために足した。
+
+   clean … 画像の書き出し／ライブラリ保存／ファイル書き出し／スタート画面へ戻る、
+           のどれかで区切りが付いた状態。次に開くのは新しいキャンバスを使いたいとき
+           なので、自動保存が残っていても復元しない。
+   dirty … 保存していない編集が自動保存に残っている状態。バックグラウンドで
+           落とされた場合もここに入るので、次の起動で黙って復元する。
+
+   値が入っていない（初めて開いた・localStorage が使えない）ときは dirty 扱いになる。
+   復元しすぎるほうが、消えてしまうより取り返しがつくため。 */
+const SESSION_KEY = 'pegboard_session_state';
+function markSessionClean(){ try{ localStorage.setItem(SESSION_KEY, 'clean'); }catch(err){} }
+function markSessionDirty(){ try{ localStorage.setItem(SESSION_KEY, 'dirty'); }catch(err){} }
+function readSessionState(){ try{ return localStorage.getItem(SESSION_KEY); }catch(err){ return null; } }
+
 let autosaveTimer=null;
 function scheduleAutosave(){
   if(autosaveTimer) clearTimeout(autosaveTimer);
@@ -10425,6 +10439,7 @@ async function doAutosave(){
     const obj={ id:'autosave_'+state.project.id, projectId:state.project.id,
       savedAt:Date.now(), data:projectToSaveObj() };
     await idbPut('autosave', obj);
+    markSessionDirty();   // ★v215：保存していない編集が残っている印
   }catch(err){ console.warn('autosave fail', err); }
 }
 async function cleanupAutosave(){
@@ -10442,26 +10457,19 @@ async function checkAutosaveOnBoot(){
   // ★v200：共有から起動したときは、その画像で新しいボードを開くのが目的なので
   //   復元ダイアログは出さない（出すと、復元を選んだ瞬間に共有画像が消える）。
   if(window.SHARED_BOOT) return false;
+  /* ★v215：前回を書き出しか保存で終えていれば、新しいキャンバスで始めたいはずなので
+     自動保存には触らない。 */
+  if(readSessionState()==='clean') return false;
   let all;
   try{
     all=(await idbGetAll('autosave')).sort((x,y)=>y.savedAt-x.savedAt);
   }catch(err){ console.warn('autosave読込失敗', err); return false; }
   if(all.length===0) return false;
-  const latest=all[0];
-  const dt=new Date(latest.savedAt);
-  document.getElementById('restoreInfo').textContent=
-    '前回 '+dt.toLocaleString('ja-JP')+' の自動保存があります。復元しますか？';
-  document.getElementById('restoreOverlay').hidden=false;
-  // ★v130：ここは起動直後で、まだ画面が一度も触られていない。
-  //   指の操作を伴わない pushState はChromeに読み飛ばされるので、ここでは積まない。
-  //   （このダイアログが出ている間の戻るは、今までどおりアプリを抜ける）
-  document.getElementById('restoreYes').onclick=()=>{
-    document.getElementById('restoreOverlay').hidden=true;
-    importProjectObj(latest.data);
-  };
-  document.getElementById('restoreNo').onclick=()=>{
-    document.getElementById('restoreOverlay').hidden=true;
-  };
+  /* ★v215：ここへ来るのは保存されないまま終わったときだけ（バックグラウンドで
+     落とされた場合を含む）。以前は復元するか尋ねるダイアログを出していたが、
+     聞かずに黙って戻す形に変えた。
+     ※ #restoreOverlay のHTMLは残してあるが、もう誰も開かない。 */
+  importProjectObj(all[0].data);
   return true;
 }
 
@@ -11123,6 +11131,10 @@ async function goToStart(){
      「このサイトを離れますか？」が出てしまう（PWAで実際に出た）。
      編集中の作品はもう手放しているので、印は不要。 */
   state.dirty=false;
+  /* ★v215：スタート画面へ戻るのは新しいキャンバスを使いたいとき（未保存があれば
+     上の確認で破棄が決まった後）。ここを clean にしておかないと、そのままアプリを
+     閉じたときに、次の起動で手放したはずのボードが黙って復元されてしまう。 */
+  markSessionClean();
   syncBackStack();   // v130：スタート画面へ出たので予備をまとめて返す
 }
 
@@ -12031,47 +12043,11 @@ function _bpPreviewLabel(c,w,h){
   c.fillText('size '+szTxt+' / '+opTxt, w-6*DPR, h-4*DPR);
   c.restore();
 }
-/* ★v210：ブラシ／消しゴムのモーダルの高さを実測して、3面とも同じ高さに揃える。
-   中身がいちばん縦に長い面（ふつうはカラー面）を測り、その値を --bpanel-h に入れる。
-   隠れている面は display:none で測れないので、一時的に .on を付け替えて測っている
-   （同じ処理の中で元に戻すので、画面には出ない）。
-   端末の文字サイズ設定でも高さは変わるため、決め打ちの数字ではなく実測にした。 */
-function syncBpanelHeight(){
-  let need = 410;
-  ['brushPanel','eraserPanel'].forEach(id=>{
-    const p=document.getElementById(id); if(!p) return;
-    const body=p.querySelector('.bpanel-body');
-    const tabs=p.querySelector('.bpanel-tabs');
-    const content=p.querySelector('.bpanel-content');
-    if(!body||!content) return;
-    const wasHidden=p.hidden, prevVis=p.style.visibility, prevH=body.style.height;
-    if(wasHidden){ p.style.visibility='hidden'; p.hidden=false; }
-    body.style.height='auto';
-    const cs=getComputedStyle(content);
-    const padV=parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom);
-    const pages=[...p.querySelectorAll('.bpanel-page')];
-    let onIdx=pages.findIndex(x=>x.classList.contains('on')); if(onIdx<0) onIdx=0;
-    pages.forEach(pg=>{
-      pages.forEach(q=>q.classList.remove('on'));
-      pg.classList.add('on');
-      const h=(tabs?tabs.offsetHeight:0)+pg.scrollHeight+padV+2;
-      if(h>need) need=Math.ceil(h);
-    });
-    pages.forEach((q,i)=>q.classList.toggle('on', i===onIdx));
-    body.style.height=prevH;
-    if(wasHidden){ p.hidden=true; p.style.visibility=prevVis; }
-  });
-  document.documentElement.style.setProperty('--bpanel-h', need+'px');
-}
-let _bpHeightTimer=null;
-window.addEventListener('load', ()=>{
-  syncBpanelHeight();
-  if(document.fonts && document.fonts.ready) document.fonts.ready.then(syncBpanelHeight);
-});
-window.addEventListener('resize', ()=>{
-  clearTimeout(_bpHeightTimer);
-  _bpHeightTimer=setTimeout(syncBpanelHeight, 200);
-});
+/* ★v214：ここにあった syncBpanelHeight()（起動時にモーダルの高さを実測して
+   --bpanel-h に入れる処理）と、その load / resize の呼び出しを撤去した。
+   履歴チップは使ううちに増えるので、起動時に測った高さでは足りなくなり、
+   スクロールが出たり消えたりしていた。CSS側を「min-height:410px の器が
+   中身に合わせて伸びる」形に変えたので、実測そのものが不要になった。 */
 function drawSampleStroke(cv){
   if(!cv) return;
   const c=_prepCanvas(cv); const w=cv.width, h=cv.height;
