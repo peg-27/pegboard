@@ -2585,6 +2585,15 @@ const TAP_MOVE_TOL = 12;  // これ以下の移動はタップ扱い(px)
    この2つの間で指を離したときは、動かしたぶんを元へ戻してタップとして扱う。
    数値は実機で詰める前提。小さくするほど軽くなるが、タップの指ブレでも動き始める。 */
 const DRAG_START_TOL = 4;
+/* ★v222：DRAG_START_TOL と TAP_MOVE_TOL のあいだ（4〜12px）で指を離したときの振り分けに、
+   距離だけでなく「指を置いていた時間」も見るようにした。
+   v219〜v221は距離だけで決めていたため、10px前後の意図的な微調整まで
+   「実はタップだった」と見なされて元の位置へ引き戻されていた（PEG報告）。
+   ・素早く離した（この時間より短い）……… 今までどおりタップ扱い。動かしたぶんは巻き戻す
+   ・ゆっくり離した（この時間以上）……… 意図的な微調整とみなして、そのままの位置に残す
+   タップは速く、微調整は遅い、という手の動きの違いで分けている。
+   数値は実機で詰める前提。長くするほどタップが安全になり、微調整はやりにくくなる。 */
+const SLOW_DRAG_MS = 250;
 
 /* ══════════════════════════════
    #DB  IndexedDB操作
@@ -9506,7 +9515,7 @@ canvas.addEventListener('pointerdown', (e)=>{
 
   const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
   const w = screenToWorld(sx, sy);
-  downInfo = { id:e.pointerId, sx, sy, wx:w.x, wy:w.y, moved:false, dragging:false, downScreen:{x:e.clientX,y:e.clientY} };  // ★v219：dragging＝小さい不感帯を越えたか
+  downInfo = { id:e.pointerId, sx, sy, wx:w.x, wy:w.y, moved:false, dragging:false, downScreen:{x:e.clientX,y:e.clientY}, t0:performance.now() };  // ★v219：dragging＝小さい不感帯を越えたか ／ ★v222：t0＝指を置いた時刻
 
   /* ── ★v181／v182：ガイドモード中は、ほかの判定に一切入らない ──────
        これが「ガイド線を掴むつもりが描画になる」のを防ぐ関門で、モードを分けた目的そのもの。
@@ -9944,7 +9953,7 @@ function endPointer(e){
       const [id, pos] = [...pointers.entries()][0];
       const rect=canvas.getBoundingClientRect();
       const w=screenToWorld(pos.x-rect.left, pos.y-rect.top);
-      downInfo={ id, sx:pos.x-rect.left, sy:pos.y-rect.top, wx:w.x, wy:w.y, moved:true, dragging:true, downScreen:{x:pos.x,y:pos.y}, _lastScreen:{x:pos.x,y:pos.y} };
+      downInfo={ id, sx:pos.x-rect.left, sy:pos.y-rect.top, wx:w.x, wy:w.y, moved:true, dragging:true, downScreen:{x:pos.x,y:pos.y}, _lastScreen:{x:pos.x,y:pos.y}, t0:performance.now() };
       gesture='pan';
     } else {
       gesture=null; downInfo=null;
@@ -9963,7 +9972,10 @@ function endPointer(e){
        動かしたぶんを元へ戻したうえで、今までどおりタップとして処理する——
        こうしないと、テキストの2回目タップ＝編集や選択の切り替えが効かなくなり、
        タップのたびにオブジェクトが数pxずつずれていく。 */
-    if(di.moved){
+    /* ★v222：距離が足りなくても、指を置いていた時間が SLOW_DRAG_MS 以上なら
+       「ゆっくり寄せた＝意図的な微調整」とみなして、そのままの位置に残す。 */
+    const slow = (performance.now() - (di.t0 || 0)) >= SLOW_DRAG_MS;
+    if(di.moved || slow){
       markDirty(); pushUndo();            // 移動を確定（保存・UNDO対象に）
     } else {
       undoTinyMove(di, wasGesture);
@@ -10664,6 +10676,12 @@ async function checkAutosaveOnBoot(){
      聞かずに黙って戻す形に変えた。
      ※ #restoreOverlay のHTMLは残してあるが、もう誰も開かない。 */
   importProjectObj(all[0].data);
+  /* ★v222：復元したボードは「保存されないまま終わった作業」そのものなので、
+     未保存の印を立て直す。importProjectObj → startApp が state.dirty を false に
+     戻してしまうため、ここで上書きする必要がある。
+     これが無いと、バックグラウンドから戻った直後（＝アプリが落とされて起動し直された直後）に
+     リセットを押しても警告が出ず、未保存の作業が黙って消えていた（PEG報告）。 */
+  markDirty();
   return true;
 }
 
