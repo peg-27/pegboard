@@ -449,6 +449,9 @@
     display:flex; align-items:center; justify-content:center;
   }
   #gridToggle svg{ width:20px; height:20px; display:block; pointer-events:none; }
+  /* ★v216：2つのアイコンのうち、使わない方を消す。
+     SVGにはHTMLの hidden 属性が効かないので、class で消す。 */
+  #gridToggle svg.hide{ display:none; }
   #gridToggle.on{ background:var(--btn-on); color:#13343d; }
   /* スナップ（四辺吸着）トグル（アイコンのみ・正方形）。ON時は点灯。グリッドボタンと同じ作り。 */
   #snapToggle{
@@ -908,7 +911,11 @@
            ★中身は v133 で完成（togglePaintSelect：押す→タップで選択→枠の外をタップで解除と同時に終了）。 -->
       <button id="paintSelectBtn" title="選択" hidden>選択</button>
       <button id="multiToggle" title="複数選択">複数選択</button>
-      <button id="gridToggle" title="グリッド表示"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3 V21"/><path d="M15 3 V21"/><path d="M3 9 H21"/><path d="M3 15 H21"/></svg></button>
+      <!-- ★v216：グリッドボタンはアイコンを2つ持つ。ふだんは1つ目（キャンバス基準）だけを出し、
+           トリミング中に「枠基準」へ回したときだけ2つ目に差し替える（updateGridBtn）。
+           2つ目は、外側の四角の中に、4分割した小さな枠を描いたもの＝「枠の中に引く」の意
+           （★v217：PEGの手描き案に合わせて描き直した。角は丸めず、外枠も薄くしない）。 -->
+      <button id="gridToggle" title="グリッド表示"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3 V21"/><path d="M15 3 V21"/><path d="M3 9 H21"/><path d="M3 15 H21"/></svg><svg id="gridIconCrop" class="hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="19" height="19"/><rect x="6.5" y="6.5" width="11" height="11"/><path d="M12 6.5 V17.5"/><path d="M6.5 12 H17.5"/></svg></button>
       <button id="snapToggle" title="四辺スナップ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8 V5 a1 1 0 0 1 1 -1 H8"/><path d="M16 4 H19 a1 1 0 0 1 1 1 V8"/><path d="M20 16 V19 a1 1 0 0 1 -1 1 H16"/><path d="M8 20 H5 a1 1 0 0 1 -1 -1 V16"/></svg></button>
       <!-- v148：書き出しプレビュー。押している間だけキャンバス枠の外を隠して、
            書き出したときの姿を確かめる。プレビュー中も編集はそのままできる。 -->
@@ -2569,6 +2576,15 @@ const CLIP_PIN_MAX       = 6;    // ★v162：ピン留めできる件数の上�
 // ▼ ズーム範囲
 const MIN_SCALE = 0.05, MAX_SCALE = 12;
 const TAP_MOVE_TOL = 12;  // これ以下の移動はタップ扱い(px)
+/* ★v219：ドラッグが「動き始める」までの不感帯(px)。TAP_MOVE_TOL とは役割を分けた。
+   v218まではどちらも TAP_MOVE_TOL＝12px が兼ねていたため、指を置いてから12px動くまで
+   オブジェクトが1pxも動かず、越えた瞬間に溜まったぶんがまとめて適用されていた。
+   これが「最初に引っかかって、越えると行き過ぎる」の正体（PEG報告）。
+   ・DRAG_START_TOL … ここを越えたら実際に動き始める（指への追従の担当）
+   ・TAP_MOVE_TOL   … タップかドラッグかの判定（据え置き）
+   この2つの間で指を離したときは、動かしたぶんを元へ戻してタップとして扱う。
+   数値は実機で詰める前提。小さくするほど軽くなるが、タップの指ブレでも動き始める。 */
+const DRAG_START_TOL = 4;
 
 /* ══════════════════════════════
    #DB  IndexedDB操作
@@ -2686,6 +2702,14 @@ const state = {
   eraseTarget: null,    // 対象の画像ノード（eraseMode中だけ有効）
   imgEraseSize: 30,     // ブラシの太さ。単位はキャンバス（ワールド）px＝ペイントのブラシと同じ
   gridOn: false,        // キャンバス全体グリッドの表示ON/OFF（ビュー設定。保存はしない）
+  /* ★v216：トリミング中だけ使うグリッドの3段階。
+       0 = キャンバス基準（ふだんのグリッドと同じもの）
+       1 = 枠基準（トリミング枠の中央を起点に、枠の中だけへ引く）
+       2 = オフ
+     トリミングに入るたび gridOn から引き継いで作り直す（オンなら0／オフなら2）。
+     トリミング中にここを回してもメイン画面の gridOn には持ち帰らない
+     ＝トリミングの中でどう切り替えても、抜ければ入る前のグリッドに戻る。 */
+  cropGridMode: 2,
   snapOn: false,        // 四辺スナップのON/OFF（ビュー設定。保存はしない。段階Aではフラグのみ・吸着挙動は段階Bで実装）
   previewOn: false,     // v148：書き出しプレビュー。ONの間はキャンバス枠の外を隠す（ビュー設定。保存はしない）
   /* ── ガイド線（★v181・要望I）────────────────────────────
@@ -3417,8 +3441,10 @@ function render(){
   ctx.strokeRect(ab.x, ab.y, ab.w, ab.h);
   ctx.restore();
 
-  // キャンバス全体グリッド（ONのとき。ピンチで一緒に拡大／線は常に画面上1px）
-  if(state.gridOn) drawGrid(ab);
+  /* キャンバス全体グリッド（ONのとき。ピンチで一緒に拡大／線は常に画面上1px）
+     ★v216：トリミング中だけは3段階の cropGridMode が主導権を持つ。
+       0＝ここでキャンバス基準を描く／1＝枠基準なのでここでは描かず drawCrop が描く／2＝描かない。 */
+  if(state.cropMode ? (state.cropGridMode === 0) : state.gridOn) drawGrid(ab);
 
   // 選択枠・範囲選択枠は描画ラッパー側で（drawActiveStrokeの後＝最前面に）描く
 }
@@ -3702,14 +3728,9 @@ function drawCrop(){
   ctx.fillRect(0, T, L, B-T);                  // 左の帯
   ctx.fillRect(R, T, W-R, B-T);                // 右の帯
   const BLUE = '#2f80ed';
-  // 三分割ガイド（薄い白線）
-  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-  ctx.beginPath();
-  ctx.moveTo(L+(R-L)/3, T);   ctx.lineTo(L+(R-L)/3, B);
-  ctx.moveTo(L+2*(R-L)/3, T); ctx.lineTo(L+2*(R-L)/3, B);
-  ctx.moveTo(L, T+(B-T)/3);   ctx.lineTo(R, T+(B-T)/3);
-  ctx.moveTo(L, T+2*(B-T)/3); ctx.lineTo(R, T+2*(B-T)/3);
-  ctx.stroke();
+  /* ★v216：ここにあった三分割ガイド（薄い白線）は撤去した（PEGの指示。使っていないため）。
+     代わりに、グリッドボタンで「枠基準」に回したときだけ下の格子を出す。 */
+  if(state.cropGridMode === 1) drawCropGrid(L, T, R, B);
   // 青い枠線
   ctx.lineWidth = 2; ctx.strokeStyle = BLUE;
   ctx.strokeRect(L, T, R-L, B-T);
@@ -3718,6 +3739,42 @@ function drawCrop(){
   ['tl','tr','bl','br','t','b','l','r'].forEach(k=>{
     ctx.beginPath(); ctx.arc(h[k].x, h[k].y, 6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
   });
+}
+/* ── 枠基準グリッド（★v216）─────────────────────────────
+   トリミング枠の中央を起点に、枠の中だけへ格子を引く。
+   キャンバス基準の drawGrid() と考え方はそっくり同じで、違いは起点と範囲だけ。
+
+   ・間隔はキャンバス基準と同じ GRID_STEP（ワールド座標px）。ここは画面座標で描くので、
+     ズーム倍率を掛けて画面上の間隔に直す（＝キャンバス基準のグリッドと同じ幅の目になる）。
+   ・赤い中央十字は枠の中央に来る。PEGの用途はここ＝枠の中心を知りたい、というもの。
+   ・呼び出し元（drawCrop）は既に setTransform(DPR,0,0,DPR,0,0) の画面座標なので、
+     線の太さは「CSSのpx」で数える。drawGrid は実画面1ドットの細さで引いているので、
+     ここでは 1/DPR を指定して同じ細さにそろえる。
+   ・引数は枠の四辺（画面座標）。L=左 T=上 R=右 B=下。 */
+function drawCropGrid(L, T, R, B){
+  const cx = (L+R)/2, cy = (T+B)/2;             // 枠の中央＝格子の起点
+  const step = GRID_STEP * state.view.scale;    // 画面上の格子の間隔
+  ctx.save();
+  ctx.beginPath(); ctx.rect(L, T, R-L, B-T); ctx.clip();   // 枠の中だけに限定
+  // 格子（画面上の間隔が十分あるときだけ。潰れて面になるのを避ける）
+  if(step >= 4){
+    ctx.lineWidth = 1/DPR;                      // 実画面1ドット（drawGridと同じ細さ）
+    ctx.strokeStyle = GRID_COLOR;
+    ctx.beginPath();
+    for(let x=cx+step; x< R; x+=step){ ctx.moveTo(x,T); ctx.lineTo(x,B); }  // 中央から右へ
+    for(let x=cx-step; x> L; x-=step){ ctx.moveTo(x,T); ctx.lineTo(x,B); }  // 中央から左へ
+    for(let y=cy+step; y< B; y+=step){ ctx.moveTo(L,y); ctx.lineTo(R,y); }  // 中央から下へ
+    for(let y=cy-step; y> T; y-=step){ ctx.moveTo(L,y); ctx.lineTo(R,y); }  // 中央から上へ
+    ctx.stroke();
+  }
+  // 中央十字（赤）。格子より太く残すのも drawGrid と同じ扱い。
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = GRID_CROSS;
+  ctx.beginPath();
+  ctx.moveTo(cx,T); ctx.lineTo(cx,B);
+  ctx.moveTo(L,cy); ctx.lineTo(R,cy);
+  ctx.stroke();
+  ctx.restore();
 }
 // ── キャンバスのサイズ変更の枠（v122）───────────────────
 // canvasResizeMode中だけ呼ばれる。枠の中＝新しいキャンバス、外＝はみ出す範囲。
@@ -3931,6 +3988,10 @@ function updateMultiHeader(){
     }
   }
   if(mt) mt.classList.toggle('on', state.multi);
+  /* ★v216：グリッドボタンの見た目もここで合わせる。
+     トリミングは exitCropMode を通らずに（選択が変わる・ツールを変える等で）
+     終わる経路がいくつかあるので、UIを組み直すこの関数で必ず追いつくようにしておく。 */
+  if(typeof updateGridBtn==='function') updateGridBtn();
   // ★v138：レイヤーパネル側の複数選択ボタンと選択解除ボタンも同じ state に合わせる
   if(typeof updateLayerPanelUI==='function') updateLayerPanelUI();
   // 「追加」ボタンが消える状況ではサブメニューも閉じる（モードに入った時・単一選択になった時）
@@ -3975,12 +4036,44 @@ function exitMulti(){
 }
 function toggleMulti(){ state.multi ? exitMulti() : enterMulti(); }
 
-// キャンバス全体グリッドの表示ON/OFF（二段目のグリッドボタン）
+/* グリッドボタン（二段目）。
+   ★v216：ふだんは今までどおりON/OFFの2段階だが、トリミング中だけ3段階で回る。
+     キャンバス基準 → 枠基準 → オフ → キャンバス基準 …
+   トリミング中の切り替えはメイン画面の gridOn には触らない（持ち帰らない）ので、
+   トリミングを抜ければ入る前のグリッドの状態にそのまま戻る。 */
 function toggleGrid(){
-  state.gridOn = !state.gridOn;
-  const b=document.getElementById('gridToggle');
-  if(b) b.classList.toggle('on', state.gridOn);
+  if(state.cropMode){
+    state.cropGridMode = (state.cropGridMode + 1) % 3;
+  } else {
+    state.gridOn = !state.gridOn;
+  }
+  updateGridBtn();
   requestRender();
+}
+/* ★v216：グリッドボタンの見た目（点灯とアイコン）を、いまの状態に合わせる。
+   ・キャンバス基準 … 点灯＋いつものアイコン
+   ・枠基準　　　　 … 点灯＋枠基準のアイコン（内側に4分割した小さな枠が入ったもの）
+   ・オフ　　　　　 … 消灯＋いつものアイコン
+   ★v218：キャンバスツール中も枠基準のアイコンにする。
+     あの画面のグリッドは artboardRect() 経由で最初から「新しいキャンバス枠」を
+     起点にしているので、点灯している間はずっと枠基準ということになる。
+     切り替えは今までどおりON/OFFの2段階で、押すと消灯＝いつものアイコン、
+     点灯＝枠基準のアイコン、と入れ替わる。 */
+function updateGridBtn(){
+  const b = document.getElementById('gridToggle');
+  if(!b) return;
+  const inCrop   = !!state.cropMode;
+  const inCanvas = !!state.canvasResizeMode;
+  const on   = inCrop ? (state.cropGridMode !== 2) : state.gridOn;
+  // いま出ている（あるいはこれから出る）格子が枠基準かどうか
+  const frame = inCrop ? (state.cropGridMode === 1) : (inCanvas && on);
+  b.classList.toggle('on', on);
+  const icons = b.querySelectorAll('svg');
+  if(icons[0]) icons[0].classList.toggle('hide',  frame);
+  if(icons[1]) icons[1].classList.toggle('hide', !frame);
+  b.title = frame
+    ? ('グリッド表示（' + (inCrop ? 'トリミング枠' : 'キャンバス枠') + '基準）')
+    : 'グリッド表示';
 }
 
 // 四辺スナップのON/OFF（二段目のスナップボタン）
@@ -7312,6 +7405,10 @@ function enterCropMode(){
   //       スライダーの基準角をここで取る（回転モードの enterRotateMode と同じ考え方）。
   state._cropEnterAngle = n.rotation || 0;
   state._rotBase = rotSnapBase(state._cropEnterAngle);
+  /* ★v216：トリミング中のグリッドは3段階。入るたびにメイン画面の状態から作り直す。
+     グリッドが出ていたなら「キャンバス基準」から、消えていたなら「オフ」から始まる。 */
+  state.cropGridMode = state.gridOn ? 0 : 2;
+  updateGridBtn();
   updateMultiHeader();   // 上段を「UNDO/REDO/確定/キャンセル」へ
   renderSubbar();        // 下段を描き直す
   requestRender();
@@ -7323,6 +7420,7 @@ function exitCropMode(){
   state.cropRect = null;
   state._cropEnterAngle = null;   // v71：使い終わった開始角度は必ず捨てる
   cropDrag = null;
+  updateGridBtn();                // ★v216：ボタンをメイン画面の（gridOnの）見た目へ戻す
   updateMultiHeader();
   renderSubbar();
   requestRender();
@@ -9223,6 +9321,29 @@ function hitCanvasHandle(sx, sy){
 function beginCanvasResizeDrag(handle, wx, wy){
   canvasResizeDrag = { handle, startRect:{...state.canvasRect}, startWX:wx, startWY:wy };
 }
+/* ★v220：キャンバスツールの枠を、元の枠（ワールドの 0,0〜canvasW,canvasH）へ吸着させる。
+   ・動かしている辺だけが対象。反対側の固定辺には触らない。
+   ・判定の距離は四辺スナップと同じ SNAP_EDGE_PX（画面px）を使い、ワールドへ換算する
+     ——ズームしても掴みやすさが変わらないようにするため、四辺スナップと同じ考え方。
+   ・2段目のスナップボタン（state.snapOn）に連動する。このボタンはキャンバスツール中も
+     出ているので、吸着が邪魔なときはその場で切れる。
+   ・赤い元枠（state.showOrigRect）を消していても吸着はする。あちらは見た目のトグルで、
+     吸着の入り切りはスナップボタンの担当、と役割を分けている。
+   吸着で最小サイズを割り込むことは無いはずだが、念のため軸ごとに確認して、
+   割るときはその軸の吸着だけ見送る。 */
+function snapCanvasEdges(handle, L, T, R, B){
+  const p = state.project;
+  if(!state.snapOn || !p) return { L, T, R, B };
+  const TH = SNAP_EDGE_PX / state.view.scale;      // 画面px → ワールド距離
+  let nL=L, nT=T, nR=R, nB=B;
+  if(handle.includes('l') && Math.abs(L - 0)          <= TH) nL = 0;
+  if(handle.includes('r') && Math.abs(R - p.canvasW)  <= TH) nR = p.canvasW;
+  if(handle.includes('t') && Math.abs(T - 0)          <= TH) nT = 0;
+  if(handle.includes('b') && Math.abs(B - p.canvasH)  <= TH) nB = p.canvasH;
+  if(nR - nL < CANVAS_MIN_PX){ nL = L; nR = R; }   // 横だけ見送り
+  if(nB - nT < CANVAS_MIN_PX){ nT = T; nB = B; }   // 縦だけ見送り
+  return { L:nL, T:nT, R:nR, B:nB };
+}
 // ドラッグ中：動かす側の辺だけずらし、反対側は固定する。
 //   最小サイズと上限を超えそうなときは、動かしている側の辺をその場で止める。
 function applyCanvasResizeDrag(wx, wy){
@@ -9241,6 +9362,10 @@ function applyCanvasResizeDrag(wx, wy){
   if(B - T > CANVAS_MAX_PX){
     if(s.handle.includes('t')) T = B - CANVAS_MAX_PX; else B = T + CANVAS_MAX_PX;
   }
+  /* ★v220：最小・上限で止めたあとに元枠へ吸着させる。
+     順番を逆にすると、吸着でぴたりと合わせた辺をこのあとの押し戻しがずらしてしまう。 */
+  const sn = snapCanvasEdges(s.handle, L, T, R, B);
+  L = sn.L; T = sn.T; R = sn.R; B = sn.B;
   state.canvasRect = { x:L, y:T, w:R-L, h:B-T };
   updateCanvasSizeReadout();
   requestRender();
@@ -9381,7 +9506,7 @@ canvas.addEventListener('pointerdown', (e)=>{
 
   const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
   const w = screenToWorld(sx, sy);
-  downInfo = { id:e.pointerId, sx, sy, wx:w.x, wy:w.y, moved:false, downScreen:{x:e.clientX,y:e.clientY} };
+  downInfo = { id:e.pointerId, sx, sy, wx:w.x, wy:w.y, moved:false, dragging:false, downScreen:{x:e.clientX,y:e.clientY} };  // ★v219：dragging＝小さい不感帯を越えたか
 
   /* ── ★v181／v182：ガイドモード中は、ほかの判定に一切入らない ──────
        これが「ガイド線を掴むつもりが描画になる」のを防ぐ関門で、モードを分けた目的そのもの。
@@ -9613,8 +9738,11 @@ canvas.addEventListener('pointermove', (e)=>{
   const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
   const dxs = e.clientX - downInfo.downScreen.x;
   const dys = e.clientY - downInfo.downScreen.y;
-  if(!downInfo.moved && (dxs*dxs+dys*dys) > TAP_MOVE_TOL*TAP_MOVE_TOL){
-    downInfo.moved = true;
+  /* ★v219：不感帯を2段構えにした。
+     ここ（DRAG_START_TOL）は「動き始める」担当で、行き先（移動／パン／範囲選択）もここで決める。
+     タップ判定用の downInfo.moved は下のブロックで、今までどおり12pxで立てる。 */
+  if(!downInfo.dragging && (dxs*dxs+dys*dys) > DRAG_START_TOL*DRAG_START_TOL){
+    downInfo.dragging = true;
     if(gesture === 'pendingSelect'){
       // 移動 or パンを確定
       // v120：選択中のオブジェクトの上から始めたドラッグだけが「移動」になる。
@@ -9629,6 +9757,9 @@ canvas.addEventListener('pointermove', (e)=>{
          v143までは「選択の上から引いても画面移動になる」状態だった。
          ・選択しているもののどれかの上から始めた → 移動（2つ以上なら moveMulti）
          ・それ以外（何もない所・未選択のもの） → 画面移動（パン）※ここは今までどおり */
+      // ★v219：4〜12pxで離したときに「タップだったこと」にして戻すため、
+      //   どちらの待ち状態から来たかを控えておく。
+      downInfo._pend = 'pendingSelect';
       if(state.selNodes.length && state.selNodes.some(n=> pointInNode(downInfo.wx, downInfo.wy, n))){
         gesture = (state.selNodes.length > 1) ? 'moveMulti' : 'move';
       } else {
@@ -9636,6 +9767,7 @@ canvas.addEventListener('pointermove', (e)=>{
       }
     } else if(gesture === 'pendingMulti'){
       // 選択済みオブジェクトの上から始めた＝まとめて移動／それ以外＝範囲選択
+      downInfo._pend = 'pendingMulti';
       const onSel = state.selNodes.some(n=> pointInNode(downInfo.wx, downInfo.wy, n));
       if(onSel){
         gesture = 'moveMulti';
@@ -9646,6 +9778,10 @@ canvas.addEventListener('pointermove', (e)=>{
         marquee = { x0:downInfo.wx, y0:downInfo.wy, x1:downInfo.wx, y1:downInfo.wy };
       }
     }
+  }
+  // ★v219：タップ判定用の目印。行き先はもう上で決まっているので、ここでは立てるだけ。
+  if(!downInfo.moved && (dxs*dxs+dys*dys) > TAP_MOVE_TOL*TAP_MOVE_TOL){
+    downInfo.moved = true;
   }
 
   if(gesture === 'paint'){
@@ -9673,7 +9809,7 @@ canvas.addEventListener('pointermove', (e)=>{
   } else if(gesture === 'guideDrag'){
     /* ★v182：ガイド線の移動。キャンバスの中だけを動ける（0〜幅／0〜高さ）。
        位置は絶対値で持つので、あとでキャンバスを縮めて外へ出ても値は残る。 */
-    if(guideDrag && downInfo.moved){
+    if(guideDrag && downInfo.dragging){   // ★v219：ここも小さい不感帯で動き出す
       const g = curGuides()[guideDrag.idx];
       if(g){
         const p = state.project;
@@ -9703,6 +9839,7 @@ canvas.addEventListener('pointermove', (e)=>{
     // ★v184：四辺スナップに加えて、ガイドモード中はガイド線への吸着も見る
     const ns = snapMoveCorrection(state.selNode);       // 本来位置から吸着を判定
     if(ns.dx || ns.dy) moveNode(state.selNode, ns.dx, ns.dy);
+    accMove(downInfo, dxw, dyw, ps, ns);                // ★v219：実際に動かした合計を控える
     downInfo._snap = ns;
     downInfo._lastScreen = {x:e.clientX, y:e.clientY};
     requestRender();
@@ -9721,6 +9858,7 @@ canvas.addEventListener('pointermove', (e)=>{
     state.selNodes.forEach(n=> moveNode(n, dxw, dyw));
     const ns = snapGuideCorrection(state.selNodes);
     if(ns.dx || ns.dy) state.selNodes.forEach(n=> moveNode(n, ns.dx, ns.dy));
+    accMove(downInfo, dxw, dyw, ps, ns);                // ★v219：実際に動かした合計を控える
     downInfo._snap = ns;
     downInfo._lastScreen = {x:e.clientX, y:e.clientY};
     requestRender();
@@ -9757,6 +9895,43 @@ canvas.addEventListener('pointermove', (e)=>{
   }
 });
 
+/* ══ ★v219：小さい不感帯で動き出したドラッグの後始末（3つ） ══════════════
+   DRAG_START_TOL（小）で動き始めるようにしたぶん、TAP_MOVE_TOL（大）に届かないまま
+   指を離す「実はタップだった」場合が新しく生まれる。その取り消しと振り分けを担当する。 */
+
+/* ドラッグ中に実際に動かした合計（ワールド座標）を downInfo に足していく。
+   そのフレームで本当に動いた量は「指ぶん dxw,dyw ＋ 今フレームの吸着 ns − 前フレームの吸着 ps」。
+   吸着ぶんまで含めて数えているので、逆向きに掛ければ寸分たがわず元の位置へ戻る。 */
+function accMove(di, dxw, dyw, ps, ns){
+  const a = di._moveAcc || (di._moveAcc = { dx:0, dy:0 });
+  a.dx += dxw + ((ns && ns.dx) || 0) - ((ps && ps.dx) || 0);
+  a.dy += dyw + ((ns && ns.dy) || 0) - ((ps && ps.dy) || 0);
+}
+/* 上で数えた合計を打ち消して、掴む前の位置へ戻す。 */
+function undoTinyMove(di, kind){
+  const a = di._moveAcc;
+  di._moveAcc = null;
+  if(!a || (!a.dx && !a.dy)) return;
+  const list = (kind === 'move') ? (state.selNode ? [state.selNode] : []) : state.selNodes;
+  list.forEach(n=> moveNode(n, -a.dx, -a.dy));
+  requestRender();
+}
+/* タップとしての処理の振り分け。endPointer のタップ確定ブロックと同じ中身なので、
+   二重に書かずに済むようここへ切り出した（di._pend に、どの待ち状態から来たかが入っている）。 */
+function finishPendingTap(di){
+  if(di._pend === 'pendingSelect'){
+    if(state.guideMode){
+      state.guideSel = -1;
+      handleCanvasTap(di.wx, di.wy);
+      requestRender();
+    }
+    else if(state.tool === 'text') handleTextModeTap(di.wx, di.wy, !!di._justExitedEdit);   // v98
+    else handleCanvasTap(di.wx, di.wy);
+  } else if(di._pend === 'pendingMulti'){
+    handleMultiTap(di.wx, di.wy);
+  }
+}
+
 function endPointer(e){
   const wasGesture = gesture;
   const di = downInfo;
@@ -9769,7 +9944,7 @@ function endPointer(e){
       const [id, pos] = [...pointers.entries()][0];
       const rect=canvas.getBoundingClientRect();
       const w=screenToWorld(pos.x-rect.left, pos.y-rect.top);
-      downInfo={ id, sx:pos.x-rect.left, sy:pos.y-rect.top, wx:w.x, wy:w.y, moved:true, downScreen:{x:pos.x,y:pos.y}, _lastScreen:{x:pos.x,y:pos.y} };
+      downInfo={ id, sx:pos.x-rect.left, sy:pos.y-rect.top, wx:w.x, wy:w.y, moved:true, dragging:true, downScreen:{x:pos.x,y:pos.y}, _lastScreen:{x:pos.x,y:pos.y} };
       gesture='pan';
     } else {
       gesture=null; downInfo=null;
@@ -9784,7 +9959,16 @@ function endPointer(e){
   } else if(wasGesture === 'erase'){
     endErase();
   } else if(wasGesture === 'move' || wasGesture === 'moveMulti'){
-    markDirty(); pushUndo();              // 移動を確定（保存・UNDO対象に）
+    /* ★v219：12px（TAP_MOVE_TOL）に届かないまま離したら「動かさなかったこと」にする。
+       動かしたぶんを元へ戻したうえで、今までどおりタップとして処理する——
+       こうしないと、テキストの2回目タップ＝編集や選択の切り替えが効かなくなり、
+       タップのたびにオブジェクトが数pxずつずれていく。 */
+    if(di.moved){
+      markDirty(); pushUndo();            // 移動を確定（保存・UNDO対象に）
+    } else {
+      undoTinyMove(di, wasGesture);
+      finishPendingTap(di);
+    }
   } else if(wasGesture === 'scale'){
     scaleInfo = null;
     if(di.moved){ markDirty(); pushUndo(); }  // 実際に拡縮した時だけ確定
@@ -9812,6 +9996,13 @@ function endPointer(e){
     /* ★v182：動かし終わり。実際に動いたときだけ履歴に1つ積む。
        ガイド線はスナップショットに入っているので、これでUNDO/REDOの対象になる。 */
     const moved = !!(guideDrag && di.moved);
+    /* ★v219：12pxに届かないまま離したときは、掴む前の位置へ戻す（タップ扱い）。
+       ピンチが割り込んだときの戻し方（#GESTURE の pointerdown）と同じ考え方。 */
+    if(guideDrag && !di.moved){
+      const g = curGuides()[guideDrag.idx];
+      if(g) g.pos = guideDrag.origPos;
+      requestRender();
+    }
     guideDrag = null;
     if(moved){ markDirty(); pushUndo(); }
   } else if(wasGesture === 'canvasResize'){
@@ -9822,6 +10013,13 @@ function endPointer(e){
   } else if(wasGesture === 'marquee'){
     marquee = null;
     marqueeBand = -1;
+    /* ★v219：範囲選択も小さい不感帯で始まるようになったので、12pxに届かずに離したときは
+       囲んだぶんを捨てて、今までどおり「タップ＝選択のトグル」に戻す。 */
+    if(!di.moved){
+      state.selNodes = marqueeBase.slice();
+      syncSelNode();
+      handleMultiTap(di.wx, di.wy);
+    }
     updateMultiHeader();                        // ★v179_2：離した時点の選択にヘッダーを合わせる
     renderSubbar(); renderLayerList(); requestRender();
   } else if(wasGesture === 'guidePan' && !di.moved){
@@ -9839,21 +10037,17 @@ function endPointer(e){
       doLineErase(di.wx, di.wy);
     } else if(wasGesture === 'tapEyedrop'){
       sampleColorAt(di.wx, di.wy);
-    } else if(wasGesture === 'pendingSelect'){
-      /* ★v184：ガイドモード中は、どのツールから入っていても同じ扱いにする。
-         ・ガイド線の選択を外す（線から離れた所を触ったので）
-         ・オブジェクトの選び直しは handleCanvasTap に任せる
-         テキストモードでも handleTextModeTap は通さない。あちらは2回目のタップで
-         文字の編集に入る作りで、ガイドモードから勝手に連れ出されてしまうため。 */
-      if(state.guideMode){
-        state.guideSel = -1;
-        handleCanvasTap(di.wx, di.wy);
-        requestRender();
-      }
-      else if(state.tool === 'text') handleTextModeTap(di.wx, di.wy, !!di._justExitedEdit);   // v98
-      else handleCanvasTap(di.wx, di.wy);
-    } else if(wasGesture === 'pendingMulti'){
-      handleMultiTap(di.wx, di.wy);
+    } else if(wasGesture === 'pendingSelect' || wasGesture === 'pendingMulti'){
+      /* 一度も DRAG_START_TOL を越えなかった、正真正銘のタップ。
+         ★v219：中身は finishPendingTap() へ切り出した（微動で 'move' や 'pan' に
+         なってしまったときも同じ処理を通したいため）。 */
+      di._pend = wasGesture;
+      finishPendingTap(di);
+    } else if(wasGesture === 'pan'){
+      /* ★v219：4〜12pxの微動で始まってしまった画面移動。
+         画面が数pxずれるのは実害が無いので戻さないが、タップとしての処理
+         （何もない所なら選択解除、など）は今までどおり行う。 */
+      finishPendingTap(di);
     }
   }
   gesture = null; downInfo = null;
@@ -12547,7 +12741,7 @@ function bindEvents(){
   });
   // グリッド表示トグル
   document.getElementById('gridToggle').addEventListener('click', toggleGrid);
-  document.getElementById('gridToggle').classList.toggle('on', state.gridOn);
+  updateGridBtn();   // ★v216：点灯とアイコンをまとめてここで合わせる
   // 四辺スナップトグル（段階A：フラグと点灯のみ）
   document.getElementById('snapToggle').addEventListener('click', toggleSnap);
   document.getElementById('snapToggle').classList.toggle('on', state.snapOn);
