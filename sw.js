@@ -1,4 +1,4 @@
-const CACHE_NAME = 'peg-board-v2.2.2';
+const CACHE_NAME = 'peg-board-v3.0.0';
 const FILES_TO_CACHE = [
   '/pegboard/',
   '/pegboard/manifest.json',

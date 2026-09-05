@@ -19,7 +19,7 @@
      PWA（v200で追加）
      app-version はデプロイのたびに上げること。末尾の更新チェックがこの値を見ている。
      ══════════════════════════════ -->
-<meta name="app-version" content="v222">
+<meta name="app-version" content="v227">
 <meta name="theme-color" content="#22272B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -378,6 +378,15 @@
        PEGは横スクロールを強く嫌うので、いちばん狭い360pxの端末でも収まる寸法に直した。
        　すき間4px ＋ アイコン枠34px ＋ 文字ボタンの左右パディング8px で合計352px。
        ★この段にボタンを足すときは、必ずここの合計を計算し直すこと。 */
+  /* ★v223：9枠化にともない寸法を固定した。中身の合計はどの画面でも
+       空き枠2 ＋ 選択36 ＋ 複数選択64 ＋ グリッド34 ＋ スナップ34
+       ＋ プレビュー34 ＋ 残り3枠34×3 ＝ 306px
+     で一定になる（消さずに席を残す作りにしたので、画面が変わっても増減しない）。
+     左右パディング16px と 最小のすき間4px×8 を足して354px。
+     360pxの端末までは横スクロールが出ない。
+     ★v225：キャンバスツール中は「複数選択64」が抜けて
+       「空き枠30 ＋ 選択36 ＋ 入れ替え36 ＋ グリッド34」に置き換わる。
+       左4枠は136pxのまま、合計も306pxのままで変わらない。 */
   /* ★v189：すき間を数値で決めるのをやめ、行全体への均等配置に変えた（PEGの案）。
      ・justify-content:space-between … 余った幅をボタンとボタンの間へ均等に配る
      ・gap:4px … 配る余りが無いときの最小のすき間。狭い端末ではここまで詰まって、
@@ -404,8 +413,12 @@
      ★v124：タップで元枠（赤1px）をトグルするボタンになった。
        ON＝明るい文字＋赤い点、OFF＝暗い文字（点なし）。点灯（背景色）にすると
        行の中央で目立ちすぎるので、色の濃さと点だけで表している。 */
+  /* ★v223：中央固定から右端固定へ。2段目のグリッド・スナップ・プレビューを
+     メイン画面と同じ位置にそろえた結果、行の中央はスナップボタンの席になったため、
+     ここに数字を重ねると衝突する。あわせて「元 」の文字も外した（#CRUMB 側）。
+     絶対配置なのは変わらないので、左の並びには一切影響しない。 */
   #canvasOrigSize{
-    position:absolute; left:50%; transform:translateX(-50%);
+    position:absolute; right:8px;
     height:30px; min-height:30px; padding:0 10px;
     font-size:13px; line-height:1; white-space:nowrap;
     border-radius:8px; background:transparent; color:var(--text-dim);
@@ -420,8 +433,17 @@
   #canvasOrigSize.on::before{ background:#e0483a; }
   /* ★v182：v181でアイコンにしたが、この2つは絵にすると意味が伝わりにくいという
      PEGの判断で文字ボタンへ戻した（回転・反転はアイコンのまま）。 */
+  /* ★v223：左右パディングでの可変幅をやめ、幅を数値で固定した。
+     2段目を9枠にしてスナップを行の中央へ据えるには、
+       「スナップより左の4枠の合計」＝「右の4枠の合計」
+     が成り立っている必要がある。右の4枠はどの画面でも34px×4＝136pxで固定
+     （プレビュー／ガイド線／回転／反転／空き枠は全部34px）なので、
+     左も 空き枠2 ＋ 選択36 ＋ 複数選択64 ＋ グリッド34 ＝ 136px に合わせてある。
+     文字の実測幅に頼ると端末のフォント次第で数pxずれるため、数値で決め打ちする。
+     ★この3つ（.cb-lead / #paintSelectBtn / #multiToggle）の幅を変えるときは、
+       必ず合計が136pxのままになるように直すこと。 */
   #multiToggle{
-    flex:0 0 auto; height:30px; min-height:30px; padding:0 8px;   /* ★v187：12→8 */
+    flex:0 0 auto; width:64px; height:30px; min-height:30px; padding:0;
     font-size:12px; border-radius:8px; background:var(--btn);
   }
   #multiToggle.on{ background:var(--btn-on); color:#13343d; }
@@ -430,18 +452,47 @@
      ★v132ではまだ中身は旧「解除」と同じ（＝選択ツールへ戻る）。
        ペイントモードから抜けずに1つだけ選ぶ動きは v133 で入れる。 */
   /* ★v182：複数選択と同じ理由で文字ボタンへ戻した。 */
+  /* ★v223：#multiToggle と同じ理由で幅を固定（36px）。上のコメントを参照。 */
   #paintSelectBtn{
-    flex:0 0 auto; height:30px; min-height:30px; padding:0 8px;   /* ★v187：12→8 */
+    flex:0 0 auto; width:36px; height:30px; min-height:30px; padding:0;
     font-size:12px; border-radius:8px; background:var(--btn); color:var(--text);
   }
+  /* ★v224：縦横入れ替えボタン。キャンバスツール中だけ出る。
+     ★v225：置き場所をグリッドボタンの左隣へ移した。幅は36pxのまま。
+     このときの左4枠は「先頭の空き枠30 ＋ 選択の席36 ＋ 入れ替え36 ＋ グリッド34 ＝ 136px」。
+     「複数選択」は箱ごと消して、そのぶんを先頭の空き枠に付け替えている（下の .cvswap）。
+     ★幅を変えるときは、この合計が136pxのままになるように直すこと。 */
+  #canvasSwapBtn{
+    flex:0 0 auto; width:36px; height:30px; min-height:30px; padding:0;
+    border-radius:8px; background:var(--btn); color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+  }
+  #canvasSwapBtn svg{ width:20px; height:20px; display:block; pointer-events:none; }
+  /* ★v225：キャンバスツール中だけ、先頭の空き枠を 2px → 30px に広げる。
+     「複数選択」（64px）を消して「入れ替え」（36px）を足した差 28px を、
+     ここで吸収している。こうすると左4枠の合計が136pxのまま変わらないので、
+     グリッド・スナップ・プレビューはメイン画面と同じ位置に立ち続ける。 */
+  #crumbBar.cvswap .cb-lead{ width:30px; }
   #paintSelectBtn.on{ background:var(--btn-on); color:#13343d; }
   /* ★v192：「席だけ残して消す」ための指定。
      display:none（hidden属性）だとボタンの箱ごと消えるので、その左隣から先が
      ボタン1つぶん左へ詰まってしまう。visibility:hidden なら箱は残ったまま
      中身だけ見えなくなるので、まわりのボタンは1pxも動かない。
      いまは「選択」ボタン（ペイントモード中だけ出る）に使っている。
-     どのときに席を残すかは #CRUMB の renderBreadcrumbInner を参照。 */
+     どのときに席を残すかは #CRUMB の renderBreadcrumbInner を参照。
+     ★v223：「複数選択」ボタンにも同じ手を使うようにした。
+       キャンバスツール中にこの2つが箱ごと消えると、グリッドから右が
+       まるごと左へ詰まってしまい（PEG指摘）、メイン画面と位置が変わっていた。
+       席さえ残しておけば、どの画面でもグリッド・スナップ・プレビューは1pxも動かない。 */
   #crumbBar .cb-seat{ visibility:hidden; pointer-events:none; }
+  /* ★v223：行の先頭に置く2pxの空き枠。これが9枠目にあたる。
+     枠が8つ（偶数）だと行のど真ん中は「4番目と5番目のあいだの隙間」に来るので、
+     4番目のスナップは構造上どうしても中央より左に立つ。しかもそのズレ幅は
+     余った幅を配る作りのせいで画面が広いほど大きくなる（PEGのGalaxy S23で約5px、
+     444pxの端末なら約7.6px）。数値で寄せても1機種でしか合わない。
+     枠を9つ（奇数）にすると、ど真ん中が5番目の枠そのものになる。
+     そこへスナップを置けば、画面幅がいくつでも必ず中央に来る。 */
+  .cb-lead{ flex:0 0 auto; width:2px; height:30px; pointer-events:none; }
   /* グリッド表示トグル（アイコンのみ・正方形）。ON時は点灯。 */
   #gridToggle{
     flex:0 0 auto; width:34px; height:30px; min-height:30px; padding:0;   /* ★v187：38→34 */
@@ -767,20 +818,22 @@
       <!-- ★v160：画像貼付を入口ごとに2つへ分けた（旧 id="addImageBtn" は addImageAlbumBtn に改名）。
            1行目に共通の「画像貼付」、2行目にどこから持ってくるかを書く。
            ★v164：一行4ボタンに戻したので、2行目は幅に合わせて「から」を落とした。
+           ・クリップボード … navigator.clipboard.read() → 履歴一覧。#CLIPBOARD セクション参照
            ・アルバム      … 従来どおりファイル選択（imageFileInput）
-           ・クリップボード … navigator.clipboard.read() → 履歴一覧。#CLIPBOARD セクション参照 -->
-      <button class="addmenu-btn" id="addImageAlbumBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.6"/><path d="M4 18 L9 12 L13 16 L16 13 L20 17"/></svg><span>画像貼付<br><span class="sub">アルバム</span></span></button>
+           ★v227：並びをクリップボード→アルバムに入れ替えた（PEGの指示）。 -->
       <button class="addmenu-btn" id="addImageClipBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4 H18 a2 2 0 0 1 2 2 V20 a2 2 0 0 1 -2 2 H6 a2 2 0 0 1 -2 -2 V6 a2 2 0 0 1 2 -2 H8"/></svg><span>画像貼付<br><span class="sub">クリップボード</span></span></button>
+      <button class="addmenu-btn" id="addImageAlbumBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.6"/><path d="M4 18 L9 12 L13 16 L16 13 L20 17"/></svg><span>画像貼付<br><span class="sub">アルバム</span></span></button>
     </div>
     <!-- キャンバスのミニパネル（v123）：「追加」サブメニューとまったく同じ仕組み・同じ位置。
          2つは排他で、片方を開くともう片方が閉じる。
-         ・リサイズ … 以前は三点メニューの中にあった「サイズを変更」。左上起点／キャンバスのみ・オブジェクトも選べる
          ・キャンバスツール … v122のハンドル式モード（中心も左上も自由に動かせる）
+         ・リサイズ … 以前は三点メニューの中にあった「サイズを変更」。左上起点／キャンバスのみ・オブジェクトも選べる
          アイコンは起点の違いを形で表している。リサイズ＝左上が固定で右下だけ伸びる。
-         キャンバスツール＝両向き矢印（1段目の入口ボタンと同じ形）。 -->
+         キャンバスツール＝両向き矢印（1段目の入口ボタンと同じ形）。
+         ★v227：並びをキャンバスツール→リサイズに入れ替えた（PEGの指示）。 -->
     <div id="canvasSubmenu" hidden>
-      <button class="addmenu-btn" id="canvasNumResizeBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M3 3 H8"/><path d="M3 3 V8"/><path d="M11 21 L21 11"/><path d="M21 16 V21 H16"/></svg><span>リサイズ</span></button>
       <button class="addmenu-btn" id="canvasToolBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M8.5 15.5 L15.5 8.5"/><path d="M15.5 12.5 V8.5 H11.5"/><path d="M8.5 11.5 V15.5 H12.5"/></svg><span>キャンバスツール</span></button>
+      <button class="addmenu-btn" id="canvasNumResizeBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1.5"/><path d="M3 3 H8"/><path d="M3 3 V8"/><path d="M11 21 L21 11"/><path d="M21 16 V21 H16"/></svg><span>リサイズ</span></button>
     </div>
     <!-- ══ 上段（回転／トリミングモード中）══
          通常ヘッダーと同じ7枠構成にしてある。UNDO と REDO が1・2番目の同じ幅・同じ位置に
@@ -905,12 +958,22 @@
     <!-- ※旧「加工サブメニュー」は撤去。回転／トリミング／反転はヘッダー1段目へ直接昇格した（v67）。 -->
     <!-- 下段：複数選択ボタン ＋ グリッド表示ボタン ＋ フレキシブル枠 -->
     <div id="crumbBar">
+      <!-- ★v223：行の先頭の空き枠（9枠目）。スナップボタンを5番目＝行のど真ん中に
+           立たせるために置いてある。詳しい理由はCSSの .cb-lead を参照。 -->
+      <div class="cb-lead"></div>
       <!-- v132：単一選択ボタン。v131までの「解除」を置き換えた。ペイントモード中だけ表示・左端固定。
            ペイント中はキャンバスのタップが全部ブラシになってしまうので、
            オブジェクトを掴みたいときの入口としてこのボタンが要る（隣の「複数選択」と対で並ぶ）。
            ★中身は v133 で完成（togglePaintSelect：押す→タップで選択→枠の外をタップで解除と同時に終了）。 -->
       <button id="paintSelectBtn" title="選択" hidden>選択</button>
       <button id="multiToggle" title="複数選択">複数選択</button>
+      <!-- ★v224：縦横入れ替え。キャンバスツール中だけ出る。
+           ★v225：置き場所を左端からグリッドボタンの左隣へ移した（PEGの指定）。
+           左端にぽつんと1つだと気付きにくいため、真ん中のボタンの群れに入れてある。
+           絵柄も両向き矢印から「縦長と横長の長方形を十字に重ねたもの」に変更。
+           矢印だと1段目のUNDO／REDOと紛らわしいのと、この形なら
+           「キャンバスが縦にも横にもなる」という結果そのものを描けるため。 -->
+      <button id="canvasSwapBtn" title="縦横を入れ替え" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="8.5" y="3" width="7" height="18" rx="1"/><rect x="3" y="8.5" width="18" height="7" rx="1"/></svg></button>
       <!-- ★v216：グリッドボタンはアイコンを2つ持つ。ふだんは1つ目（キャンバス基準）だけを出し、
            トリミング中に「枠基準」へ回したときだけ2つ目に差し替える（updateGridBtn）。
            2つ目は、外側の四角の中に、4分割した小さな枠を描いたもの＝「枠の中に引く」の意
@@ -925,9 +988,10 @@
            専用ツールバーに差し替わるので、そちらは1段目の中央（#txtGuideBtn）に置いてある。 -->
       <button id="guideToggle" title="ガイド線"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M7 3 V21" stroke-dasharray="3 3.5"/><path d="M17 3 V21" stroke-dasharray="3 3.5"/></svg></button>
       <div id="breadcrumbRow"></div>
-      <!-- v123：キャンバスツール中だけ出る「元サイズ」。行の中央に絶対配置で重ねてあるので、
-           左のグリッド・スナップの並びには影響しない（1段目の中央枠と縦に揃う）。
-           v124：タップで元枠（赤1px）の表示をトグルするボタンになった。 -->
+      <!-- v123：キャンバスツール中だけ出る「元サイズ」。絶対配置で重ねてあるので、
+           左のグリッド・スナップの並びには影響しない。
+           v124：タップで元枠（赤1px）の表示をトグルするボタンになった。
+           ★v223：置き場所を行の中央から右端へ移し、「元」の文字を外した。 -->
       <button id="canvasOrigSize" title="元の枠の表示" hidden></button>
     </div>
     <!-- ══ 二段目（テキストモード中）══ v97
@@ -2701,6 +2765,12 @@ const state = {
   //     確定した時に一度だけ、全オブジェクトを枠の左上ぶん逆へずらして辻褄を合わせる。
   //     これで「左辺・上辺を動かしてもオブジェクトが画面上その場に留まる」が成立する。
   canvasResizeMode: false,
+  /* ★v226：枠ごと移動のサブモード。キャンバスツールの中だけで立つ。
+       枠の中をタップ＝ON／枠の外をタップ＝OFF。ONの間だけ、枠の中のドラッグが
+       「画面移動」ではなく「枠ごと移動」になる。ハンドル（大きさ変更）は
+       ON/OFFのどちらでも今までどおり効く（PEGの指定）。
+       見分けは枠線を破線にすることで付ける。 */
+  canvasMoveMode: false,
   canvasRect: null,     // 新しいキャンバス枠（ワールド座標・軸並行 {x,y,w,h}）。モード中だけ有効。
   showOrigRect: true,   // v124：キャンバスツール中に「元の枠」（赤1px）を出すか。2段目の元サイズでトグル。
   // ── 画像消しゴム（v78）──────────────────────────────
@@ -3370,7 +3440,10 @@ function modeCrumbs(){
   if(state.cropMode)              c.push('トリミング');
   else if(state.rotateMode)       c.push('回転');
   else if(state.eraseMode)        c.push('消しゴム');
-  else if(state.canvasResizeMode) c.push('キャンバスツール');
+  else if(state.canvasResizeMode){
+    c.push('キャンバスツール');
+    if(state.canvasMoveMode) c.push('移動');   // ★v226：枠ごと移動のサブモード
+  }
   return c;
 }
 let _modeBadgeLast = '';
@@ -3825,9 +3898,17 @@ function drawCanvasResize(){
     ctx.strokeRect(ox, oy, ow, oh);
   }
   const AC = '#87B9C7';                        // アクセント（--btn-on と同じ）
-  // 枠線
+  /* 枠線
+     ★v226：枠ごと移動のサブモード中だけ破線にする。モードに入っているかどうかを
+       目線が向いている枠そのもので伝えるための差別化（PEGの案）。
+       破線の刻みは画面座標で固定（ここは既にスクリーン座標なので、
+       拡大しても刻みの大きさは変わらない。赤い元枠・ハンドルと同じ扱い）。
+       ★描き終わったら必ず setLineDash([]) で戻すこと。戻し忘れると、
+         このあと描くハンドルの白フチまで破線になる。 */
   ctx.lineWidth = 2; ctx.strokeStyle = AC;
+  if(state.canvasMoveMode) ctx.setLineDash([9, 6]);
   ctx.strokeRect(L, T, R-L, B-T);
+  ctx.setLineDash([]);
   // ハンドル（角4＋辺4）。トリミングより1px大きい7pxで、指の目標を分かりやすくする。
   ctx.fillStyle = AC; ctx.lineWidth = 2; ctx.strokeStyle = '#fff';
   ['tl','tr','bl','br','t','b','l','r'].forEach(k=>{
@@ -4351,7 +4432,7 @@ function selectedSingleGid(){
 //   ・未選択（選択ツール）：空（v148で操作ヒントを撤去）
 //   ・その他（ペイント／テキスト等）：空
 //   ※将来グループ機能を入れたら、階層内ではここにパンくずを出す（CSSの .crumb 系は温存）。
-/* ★v190：2段目の枠数を常に8つに揃える。
+/* ★v190：2段目の枠数を常に揃える（★v223：8つ→9つ）。
    数え方は「#crumbBar の直接の子で、隠れていないもの」。
    ただし #breadcrumbRow は display:contents で箱としては消えているので、
    その中身（回転・反転）の数を代わりに数える。
@@ -4367,7 +4448,9 @@ function updateCrumbSlots(){
     if(el.id === 'breadcrumbRow'){ n += el.children.length; continue; }
     n++;
   }
-  for(let i = n; i < 8; i++){
+  /* ★v223：8つ→9つ。奇数にすることで5番目（スナップ）が行のど真ん中になる。
+     先頭の .cb-lead も1枠として数えている（hidden ではないので自動で数に入る）。 */
+  for(let i = n; i < 9; i++){
     const d = document.createElement('div');
     d.className = 'cb-slot';
     bar.appendChild(d);
@@ -4404,23 +4487,46 @@ function renderBreadcrumbInner(){
        ・ペイント中　　　　　　→ ふつうに出す
        ・メイン画面　　　　　　→ 席だけ残す（見えないが場所は取る）
        ・回転などのモード中　　→ 完全に消す（この段は元から並びが変わるため） */
+    /* ★v223：席は「どの画面でも必ず残す」に変えた。
+       v192では回転などのモード中だけ箱ごと消していたが、キャンバスツールも
+       そのモードのひとつなので、グリッドから右がまるごと左へ詰まっていた。
+       常に席を残せば、スナップは常に5番目＝行の中央のままになる。
+       ★v225：キャンバスツール中もこの席は残す（v224では入れ替えボタンに
+         明け渡していたが、そのボタンはグリッドの左隣へ引っ越した）。 */
     const showSel = (state.tool==='paint') && !inModeNow;
-    const keepSeat = (state.tool==='select') && !inModeNow;
-    selBtn.hidden = !showSel && !keepSeat;
-    selBtn.classList.toggle('cb-seat', !showSel && keepSeat);
+    selBtn.hidden = false;
+    selBtn.classList.toggle('cb-seat', !showSel);
     selBtn.classList.toggle('on', showSel && !!state.paintSelect);   // v133：選択待ち／選択中は点灯
   }
   /* ── v123：キャンバスツール中の2段目 ─────────────────────
-     ・複数選択ボタンは隠す（このモードでは使わない）。隠すとflexが詰まるので、
-       グリッド・スナップが自動的に左端へ寄る＝「左詰め」はこれだけで成立する。
-     ・行の中央に「元サイズ」を出す（絶対配置なので左の並びには影響しない）。
+     ・「選択」は席だけ残し、「複数選択」は箱ごと消す（★v225）。
+       消したぶんの幅は先頭の空き枠が引き受けるので、枠は9つのまま、
+       グリッド・スナップ・プレビューの位置もメイン画面と同じまま変わらない。
+     ・グリッドの左隣に縦横入れ替えボタンを出す（★v225）。
+     ・行の右端に「元サイズ」を出す（★v223。絶対配置なので並びには影響しない）。
+       v222までは行の中央だったが、そこはスナップボタンの席になった。
      ・操作ヒントは出さない（v148で全画面から撤去済み）。 */
+  /* ★v223：hidden（箱ごと消す）から cb-seat（席は残して中身だけ消す）へ。
+     ここを消していたのが、キャンバスツールでグリッドが左端まで寄っていた直接の原因。
+     ★v225：ただしキャンバスツール中だけは例外で、箱ごと消す。
+       この席（64px）に縦横入れ替えボタン（36px）が入るのではなく、
+       入れ替えボタンはグリッドの左隣に立つため、枠の数を合わせる必要がある。
+       差の28pxは先頭の空き枠（#crumbBar.cvswap の .cb-lead）が受け持つ。 */
+  const inCvTool = !!state.canvasResizeMode;
+  const bar = document.getElementById('crumbBar');
+  if(bar) bar.classList.toggle('cvswap', inCvTool);
+  const swapBtn = document.getElementById('canvasSwapBtn');
+  if(swapBtn) swapBtn.hidden = !inCvTool;
   const mtBtn = document.getElementById('multiToggle');
-  if(mtBtn) mtBtn.hidden = !!state.canvasResizeMode || (state.tool==='paint' && inModeNow);   // v133
+  if(mtBtn){
+    mtBtn.hidden = inCvTool;
+    mtBtn.classList.toggle('cb-seat', !inCvTool && (state.tool==='paint' && inModeNow));   // v133
+  }
   const orig = document.getElementById('canvasOrigSize');
   if(orig){
     if(state.canvasResizeMode && state.project){
-      orig.textContent = '元 ' + Math.round(state.project.canvasW) + ' × ' + Math.round(state.project.canvasH);
+      // ★v223：右端へ移したので「元 」の文字は外した（赤い点と文字色の濃さで見分ける）。
+      orig.textContent = Math.round(state.project.canvasW) + ' × ' + Math.round(state.project.canvasH);
       orig.classList.toggle('on', !!state.showOrigRect);   // v124：元枠を出しているか
       orig.hidden = false;
     } else {
@@ -4518,6 +4624,7 @@ function setTool(tool){
   state.rotateMode = false;         // ツールを変えたら回転モードは解除
   state.cropMode = false; state.cropRect = null;   // ツールを変えたらトリミングモードも解除
   state.canvasResizeMode = false; state.canvasRect = null;  // v122：キャンバスのサイズ変更も解除
+  state.canvasMoveMode = false;                            // ★v226
   canvasResizeDrag = null;
   canvasRectUndo = []; canvasRectRedo = [];                 // v124：モード内の履歴も捨てる
   if(typeof closeCanvasNumModal==='function') closeCanvasNumModal();
@@ -7027,6 +7134,7 @@ function enterCanvasResizeMode(){
   if(state.multi) exitMulti();
   if(state.selNodes.length) setSelection([]);   // 中で回転／トリミング／消しゴムも解除される
   state.canvasResizeMode = true;
+  state.canvasMoveMode = false;                   // ★v226：入った直後はふつうの（実線の）状態から
   state.canvasRect = { x:0, y:0, w:p.canvasW, h:p.canvasH };
   state.showOrigRect = true;                      // v124：元枠は既定で表示（2段目の元サイズで消せる）
   canvasResizeDrag = null;
@@ -7041,6 +7149,7 @@ function enterCanvasResizeMode(){
 // モード状態とUIの後始末だけ。見た目の確定は canvasResizeConfirm 側で済ませる。
 function exitCanvasResizeMode(){
   state.canvasResizeMode = false;
+  state.canvasMoveMode = false;               // ★v226：サブモードも一緒に畳む
   state.canvasRect = null;
   canvasResizeDrag = null;
   canvasRectUndo = []; canvasRectRedo = [];   // v124：モード内の履歴は持ち越さない
@@ -7122,6 +7231,28 @@ function applyCanvasNum(){
   updateCanvasSizeReadout();
   requestRender();
 }
+/* ── ★v224：縦横の入れ替え ──────────────────────────────
+   2段目の左端（#canvasSwapBtn）から呼ぶ。枠の幅と高さを入れ替えるだけ。
+   [[peg-picto]]の「キャンバスの回転」の代わりに、縦構図↔横構図を切り替えるための機能。
+
+   ★中身は回らないし動かない。回るのは枠だけで、オブジェクトはその場に留まる。
+     （キャンバスツール全体がその作りなので、ここだけ例外にはしない。）
+   ★起点は中心。数値入力モーダル（applyCanvasNum）と同じにそろえてある。
+   ★モード内UNDOに1ステップとして積むので、押してもすぐ取り返せる。
+     ✓を押すまでキャンバス本体には何も起きないのも、ほかの操作と同じ。 */
+function swapCanvasRect(){
+  if(!state.canvasResizeMode || !state.canvasRect) return;
+  const r = state.canvasRect;
+  const cx = r.x + r.w/2, cy = r.y + r.h/2;          // ★中心起点
+  const nw = clampCanvasNum(r.h), nh = clampCanvasNum(r.w);
+  if(nw === Math.round(r.w) && nh === Math.round(r.h)) return;   // 正方形なら何も起きない
+  state.canvasRect = { x: cx - nw/2, y: cy - nh/2, w: nw, h: nh };
+  canvasResizeDrag = null;
+  pushCanvasRectStep();
+  updateCanvasSizeReadout();
+  requestRender();
+}
+
 // ヘッダー中央の数字だけを書き替える軽い更新（ドラッグ中に毎フレーム呼ぶ）。
 //   updateMultiHeader() はパンくずの作り直しまで走るので、ドラッグ中には重すぎる。
 function updateCanvasSizeReadout(){
@@ -8760,7 +8891,8 @@ function restoreSnapshot(snap){
   // v122：キャンバスのサイズ変更モード中にUNDO/REDOすると、土台のサイズごと差し替わって
   //   ドラッグ中の枠が意味を失う。回転・トリミングと同じくモードごと畳む。
   //   ★updateMultiHeader() より前に畳むこと。後ろだと1段目が専用行のまま残る。
-  state.canvasResizeMode = false; state.canvasRect = null; canvasResizeDrag = null;
+  state.canvasResizeMode = false; state.canvasMoveMode = false;   // ★v226
+  state.canvasRect = null; canvasResizeDrag = null;
   canvasRectUndo = []; canvasRectRedo = [];   // v124：モード内の履歴も一緒に捨てる
   if(typeof closeCanvasNumModal==='function') closeCanvasNumModal();
   state.multi = false; updateMultiHeader();
@@ -9326,7 +9458,15 @@ function hitCanvasHandle(sx, sy){
   }
   return best;
 }
+// ★v226：押した画面座標が枠の内側か。トリミングの pointInCropRectScreen と同じ作り。
+//   枠ごと移動のサブモードの出入り（枠の中＝入る／外＝出る）と、
+//   サブモード中の「掴んだかどうか」の判定に使う。
+function pointInCanvasRectScreen(sx, sy){
+  const h = canvasHandlesScreen(); if(!h) return false;
+  return sx>=h.tl.x && sx<=h.br.x && sy>=h.tl.y && sy<=h.br.y;
+}
 // ドラッグ開始情報（開始時点の枠と、押したワールド座標を覚える）
+//   ★v226：handle には角・辺の8種のほかに 'move'（枠ごと移動）が入るようになった。
 function beginCanvasResizeDrag(handle, wx, wy){
   canvasResizeDrag = { handle, startRect:{...state.canvasRect}, startWX:wx, startWY:wy };
 }
@@ -9353,12 +9493,48 @@ function snapCanvasEdges(handle, L, T, R, B){
   if(nB - nT < CANVAS_MIN_PX){ nT = T; nB = B; }   // 縦だけ見送り
   return { L:nL, T:nT, R:nR, B:nB };
 }
+/* ★v226：枠ごと移動のときの吸着。
+   辺を動かすとき（snapCanvasEdges）との違いは、大きさが変わらないこと。
+   だから片方の辺を吸わせたら、反対側の辺も同じだけずらす必要がある——
+   つまり「辺を合わせる」のではなく「枠全体をずらす量（オフセット）」を決める。
+   ・軸ごとに、左辺→0／右辺→canvasW の2つの候補を見て、近いほうを1つだけ採る。
+     両方が範囲に入るのは枠と元枠がほぼ同じ大きさのときだけで、そのときは
+     どちらを採っても結果は変わらない。
+   ・判定の距離は辺のときと同じ SNAP_EDGE_PX（画面px）をワールドへ換算したもの。
+   ・2段目のスナップボタン（state.snapOn）で切れるのも辺のときと同じ。 */
+function snapCanvasMove(L, T, R, B){
+  const p = state.project;
+  if(!state.snapOn || !p) return { L, T, R, B };
+  const TH = SNAP_EDGE_PX / state.view.scale;      // 画面px → ワールド距離
+  const pick = (a, b)=>{                           // 2候補のうち近いほうのずらし量。無ければ0
+    const ca = Math.abs(a) <= TH ? a : null;
+    const cb = Math.abs(b) <= TH ? b : null;
+    if(ca === null) return cb === null ? 0 : cb;
+    if(cb === null) return ca;
+    return Math.abs(ca) <= Math.abs(cb) ? ca : cb;
+  };
+  const ox = pick(0 - L, p.canvasW - R);
+  const oy = pick(0 - T, p.canvasH - B);
+  return { L:L+ox, T:T+oy, R:R+ox, B:B+oy };
+}
 // ドラッグ中：動かす側の辺だけずらし、反対側は固定する。
 //   最小サイズと上限を超えそうなときは、動かしている側の辺をその場で止める。
+//   ★v226：handle が 'move' のときだけは別扱いで、四辺をそろって平行移動させる。
 function applyCanvasResizeDrag(wx, wy){
   if(!canvasResizeDrag) return;
   const s = canvasResizeDrag, sr = s.startRect;
   const dx = wx - s.startWX, dy = wy - s.startWY;
+  /* ★v226：枠ごと移動。大きさは変わらないので、最小・上限のクランプは要らない。
+     移動できる範囲にも制限は掛けない——キャンバスツールは元々「制限のない空間」で
+     枠を決める作りで、外へ出たオブジェクトは切られずに隠れるだけだから。 */
+  if(s.handle === 'move'){
+    let mL = sr.x + dx, mT = sr.y + dy, mR = sr.x + sr.w + dx, mB = sr.y + sr.h + dy;
+    const ms = snapCanvasMove(mL, mT, mR, mB);
+    state.canvasRect = { x:ms.L, y:ms.T, w:ms.R-ms.L, h:ms.B-ms.T };
+    updateCanvasSizeReadout();
+    requestRender();
+    return;
+  }
   let L=sr.x, T=sr.y, R=sr.x+sr.w, B=sr.y+sr.h;
   if(s.handle.includes('l')) L = Math.min(sr.x + dx,        R - CANVAS_MIN_PX);
   if(s.handle.includes('r')) R = Math.max(sr.x+sr.w + dx,   L + CANVAS_MIN_PX);
@@ -9588,9 +9764,22 @@ canvas.addEventListener('pointerdown', (e)=>{
     if(hk){
       beginCanvasResizeDrag(hk, w.x, w.y);
       gesture = 'canvasResize';
-    } else {
-      gesture = 'canvasPan';
+      return;
     }
+    /* ★v226：ハンドル以外は、枠ごと移動のサブモード（state.canvasMoveMode）で行き先が変わる。
+         ・サブモード中に枠の中を押した → その場で枠を掴む（canvasMove）
+         ・それ以外                     → いったん画面移動（canvasPan）
+       サブモードの出入りは「動かさずに離した＝タップ」でだけ起こすので、
+       ここでは内側だったかどうかだけ控えて、判定は endPointer に任せる。
+       こうすると、ドラッグ（画面移動）のついでにモードが切り替わることがない。 */
+    const inside = pointInCanvasRectScreen(sx, sy);
+    if(state.canvasMoveMode && inside){
+      beginCanvasResizeDrag('move', w.x, w.y);
+      gesture = 'canvasMove';
+      return;
+    }
+    downInfo._cvInside = inside;
+    gesture = 'canvasPan';
     return;
   }
 
@@ -9802,7 +9991,11 @@ canvas.addEventListener('pointermove', (e)=>{
   } else if(gesture === 'imgErase'){
     const w = screenToWorld(sx, sy);
     eraseStrokeTo(w.x, w.y);
-  } else if(gesture === 'canvasResize'){
+  } else if(gesture === 'canvasResize' || gesture === 'canvasMove'){   // ★v226：枠ごと移動も同じ関数へ
+    /* ★v226：枠ごと移動のときだけ、小さい不感帯（DRAG_START_TOL）を越えてから動かす。
+       サブモード中は枠の中を押した時点で掴んでしまうので、置いただけ・軽く触れただけで
+       枠が数pxずれるのを防ぐ。ハンドル（canvasResize）は今までどおり即座に追従する。 */
+    if(gesture === 'canvasMove' && !downInfo.dragging) return;
     const w = screenToWorld(sx, sy);
     applyCanvasResizeDrag(w.x, w.y);
   } else if(gesture === 'guidePaint'){
@@ -10017,9 +10210,19 @@ function endPointer(e){
     }
     guideDrag = null;
     if(moved){ markDirty(); pushUndo(); }
-  } else if(wasGesture === 'canvasResize'){
+  } else if(wasGesture === 'canvasResize' || wasGesture === 'canvasMove'){   // ★v226
     canvasResizeDrag = null;                    // v122：枠は state.canvasRect の一時データ。確定までUNDOは積まない。
     if(di.moved) pushCanvasRectStep();          // v124：ただしモード内UNDOには1ステップ積む（ドラッグ中は積まない）
+  } else if(wasGesture === 'canvasPan' && !di.moved && state.canvasResizeMode){
+    /* ★v226：キャンバスツール中の、動かさずに離したタップ＝枠ごと移動のサブモードの出入り。
+       　枠の中 → 入る／枠の外 → 出る。すでに入っている状態で枠の中を押したときは
+       　canvasMove へ行くのでここへは来ない（つまり中を何度タップしても外れない）。
+       ドラッグ（画面移動）だったときは di.moved が立つのでここを通らない。 */
+    const want = !!di._cvInside;
+    if(state.canvasMoveMode !== want){
+      state.canvasMoveMode = want;
+      requestRender();                          // 枠線の実線⇔破線とモードバッジを描き替える
+    }
   } else if(wasGesture === 'cropResize' || wasGesture === 'cropMove'){
     cropDrag = null;                            // 枠は state.cropRect に持つ一時データ。確定(段階B)まではUNDO対象外。
   } else if(wasGesture === 'marquee'){
@@ -12722,6 +12925,8 @@ function bindEvents(){
      何もない所をタップした時点で解除＋サブモード終了＝描画に戻る。
      もう一度押せば押し間違いを取り消せる（#TOOL の togglePaintSelect）。 */
   document.getElementById('paintSelectBtn').addEventListener('click', togglePaintSelect);
+  // ★v224：縦横入れ替え（キャンバスツール中だけ、上の「選択」と同じ席に出る）
+  document.getElementById('canvasSwapBtn').addEventListener('click', swapCanvasRect);
 
   /* ── v132：ペイント専用ヘッダー（1段目）────────────────────
      並びは UNDO / REDO / コピー / ペースト / 削除 / （空き）/ 完了。
