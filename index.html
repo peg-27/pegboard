@@ -19,7 +19,7 @@
      PWA（v200で追加）
      app-version はデプロイのたびに上げること。末尾の更新チェックがこの値を見ている。
      ══════════════════════════════ -->
-<meta name="app-version" content="v232">
+<meta name="app-version" content="v242">
 <meta name="theme-color" content="#22272B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -299,6 +299,12 @@
     display:flex; align-items:center; justify-content:center;
   }
   #toolRowMode .modeangle:disabled{ opacity:0; }
+  /* ★v234：display:flex が hidden を打ち消すので、隠すときは明示する。
+     消しゴムモード中はこの枠を赤ペン／消しゴムの切替ボタンに明け渡す。 */
+  #toolRowMode .modeangle[hidden]{ display:none; }
+  /* ★v236：控えたマスクが無いときは押せないので薄く見せる。
+     モード行の他のボタン（UNDO／REDO）の見た目は変えたくないので、この1つだけに絞ってある。 */
+  #toolRowMode #erasePasteBtn:disabled{ opacity:.32; }
   /* v122：キャンバスのサイズ変更中は「1080 × 1440」と長くなるので一段小さく。
      枠は角度と同じ1/7のまま、overflow:visible で両隣の空き枠へはみ出して収まる。 */
   #toolRowMode .modeangle.sizeread{ font-size:15px; letter-spacing:0; }
@@ -850,9 +856,24 @@
     <div id="toolRowMode" hidden>
       <button class="hbtn" id="undoBtnX" title="元に戻す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8 L3 12 L7 16"/><path d="M3 12 H14 a6 6 0 0 1 6 6"/></svg></button>
       <button class="hbtn" id="redoBtnX" title="やり直し"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8 L21 12 L17 16"/><path d="M21 12 H10 a6 6 0 0 0 -6 6"/></svg></button>
-      <div class="hspacer"></div>
+      <!-- ★v233：3番目の枠は「赤の表示切替（消しゴム中）or 空き枠（それ以外のモード）」で
+           分け合う。どちらかが必ず居るので、モードが変わっても✕と✔の位置は動かない。
+           斜線（#maskEyeSlash）は非表示のときだけ出す（updateMaskEyeBtn）。 -->
+      <button class="hbtn" id="maskEyeBtn" title="赤の表示を切り替え" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 12 C5.2 7.4 8.5 5.3 12 5.3 C15.5 5.3 18.8 7.4 21.8 12 C18.8 16.6 15.5 18.7 12 18.7 C8.5 18.7 5.2 16.6 2.2 12 Z"/><circle cx="12" cy="12" r="3.1"/><path id="maskEyeSlash" d="M4.5 19.5 L19.5 4.5"/></svg></button>
+      <div class="hspacer" id="mSpEye"></div>
       <button class="hbtn modeangle" id="rotReadout" title="タップで0°に戻す"></button>
-      <div class="hspacer"></div>
+      <!-- ★v234：4番目の枠は「角度・サイズの表示（回転／トリミング／キャンバス）or
+           赤ペンと消しゴムの切替（消しゴム中）」で分け合う。
+           中身は2つのSVGを重ねて持ち、いま使っていない方の道具の絵を出す
+           （押すとその道具に変わる、という見せ方。updateErasePenBtn が切り替える）。 -->
+      <button class="hbtn" id="erasePenBtn" title="赤ペンと消しゴムの切替" hidden>
+        <svg id="epIconPen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 L8.2 18.9 L19.3 7.8 a2 2 0 0 0 -2.8 -2.8 L5.4 16.1 Z"/><path d="M14.6 6.6 L17.4 9.4"/></svg>
+        <svg id="epIconEraser" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.4 18.6 L3.9 15.1 a1.6 1.6 0 0 1 0 -2.3 L12.5 4.2 a1.6 1.6 0 0 1 2.3 0 L20.1 9.5 a1.6 1.6 0 0 1 0 2.3 L13.4 18.6 Z"/><path d="M8.7 7.9 L16.6 15.8"/><path d="M11 21.2 H20.5"/></svg>
+      </button>
+      <div class="hspacer" id="mSpPaste"></div>
+      <!-- ★v236：5番目の枠は「前のマスクを貼り付け（消しゴム中）or 空き枠」で分け合う。
+           前回の作業を控えてあるときだけ押せる（無いときは薄く表示して押せない）。 -->
+      <button class="hbtn" id="erasePasteBtn" title="前のマスクを貼り付け" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 H7 a2 2 0 0 0 -2 2 V19 a2 2 0 0 0 2 2 H17 a2 2 0 0 0 2 -2 V6 a2 2 0 0 0 -2 -2 H15"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg></button>
       <button class="hbtn" id="modeCancelBtn" title="キャンセル"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6 L18 18"/><path d="M18 6 L6 18"/></svg></button>
       <button class="hbtn" id="modeOkBtn" title="確定"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13 L10 18 L20 6"/></svg></button>
     </div>
@@ -1298,12 +1319,22 @@
     width:30px; height:30px; border-radius:50%;
     background:var(--btn-on); border:2px solid var(--bar);
   }
-  /* 消しゴムモード中の下部バー（v80）。
-     スライダーは1本だけだが、いちばん下の操作が画面の底に張り付くと指を置きにくいので、
-     下側に余白を足して底から離してある。バーが少し背高になるぶんキャンバスは縮む。 */
+  /* 消しゴムモード中の下部バー（v80／★v235で2段に）。
+     ・1段目＝ブラシの太さ、2段目＝確定時にかける輪郭補正の強さ。
+       （v236〜v238にあった3段目「縁」は、値が決まったので定数へ畳んだ）
+     ・スライダー同士は 22px 離してある。近いと指が隣に触れて誤操作するため（PEGの要望）。
+     ・いちばん下の操作が画面の底に張り付くと指を置きにくいので、下側にも余白を足してある。
+     ・バーが背高になるぶんキャンバスは縮むが、それは構わないという整理。 */
   #subbar.erasebar{
-    padding-top:10px; padding-bottom:22px; min-height:74px;
-    align-items:center;
+    flex-direction:column; align-items:stretch; gap:22px;
+    padding-top:14px; padding-bottom:26px; min-height:0;
+    overflow-x:hidden;
+  }
+  /* 2段になったので、どちらの行かが分かるよう左端にラベルを置く。
+     幅を固定してあるので、2本のスライダーの左端がきれいにそろう。 */
+  #subbar .erlbl{
+    flex:0 0 auto; width:32px; font-size:12px; color:var(--text-dim);
+    white-space:nowrap; letter-spacing:0;
   }
   /* 太さの数値表示。桁数が変わっても幅が動かないよう等幅数字にしてある。
      v87：min-width を詰めて中央寄せに変更（右端に張り付いて＋ボタンと離れて見えていた）。 */
@@ -1313,24 +1344,24 @@
     font-size:13px; font-variant-numeric:tabular-nums; color:var(--text);
   }
   /* 太さスライダー：透明度スライダーと同じ作り（細いトラック＋大きめのつまみ） */
-  #subbar #eraseSizeRange{
+  #subbar #eraseSizeRange, #subbar #eraseFixRange{
     -webkit-appearance:none; appearance:none;
     height:6px; border-radius:999px; outline:none; margin:0;
     background:var(--line);
   }
-  #subbar #eraseSizeRange::-webkit-slider-runnable-track{
+  #subbar #eraseSizeRange::-webkit-slider-runnable-track, #subbar #eraseFixRange::-webkit-slider-runnable-track{
     -webkit-appearance:none; height:6px; background:transparent; border-radius:999px;
   }
-  #subbar #eraseSizeRange::-webkit-slider-thumb{
+  #subbar #eraseSizeRange::-webkit-slider-thumb, #subbar #eraseFixRange::-webkit-slider-thumb{
     -webkit-appearance:none; appearance:none;
     width:32px; height:32px; margin-top:-13px; border-radius:50%;
     background:var(--btn-on); border:2px solid var(--bar);
     box-shadow:0 1px 3px rgba(0,0,0,.4);
   }
-  #subbar #eraseSizeRange::-moz-range-track{
+  #subbar #eraseSizeRange::-moz-range-track, #subbar #eraseFixRange::-moz-range-track{
     height:6px; background:transparent; border-radius:999px;
   }
-  #subbar #eraseSizeRange::-moz-range-thumb{
+  #subbar #eraseSizeRange::-moz-range-thumb, #subbar #eraseFixRange::-moz-range-thumb{
     width:32px; height:32px; border-radius:50%;
     background:var(--btn-on); border:2px solid var(--bar);
   }
@@ -2106,9 +2137,11 @@
      三点メニューの「画像を保存する」から開く。
      ・形式は PNG／JPEG の2択。JPEGを選んだときだけ画質スライダーが出る
      ・画質は 10〜100（内部では 0.1〜1.0 に直して canvas へ渡す）
-     ・選んだ内容はこのセッションの間だけ覚えている（exportFmt / exportQuality）
-     ★透過の心配は無い。exportImage() は先に背景色で下地を塗ってから描いているので、
-       PNGでも透明な部分は残らない＝JPEGにしても見た目は変わらない。 -->
+     ・選んだ内容はこのセッションの間だけ覚えている（exportFmt / exportQuality / exportAlpha）
+     ★v239：「背景を透明にする」を追加した。
+       v238まではPNGでも必ず背景色で下地を塗っていたので、消しゴムで背景を抜いた画像を
+       書き出すと白く埋まって出てきた（PEG報告）。透過はPNGだけの機能なので、
+       JPEGを選んでいる間はこの行を出さない。 -->
 <div id="exportImgOverlay" class="overlay" hidden>
   <div class="sheet">
     <h2>画像を保存する</h2>
@@ -2117,6 +2150,10 @@
       <button id="expFmtJpg">JPEG</button>
     </div>
     <p id="expFmtNote"></p>
+    <!-- ★v239：PNGのときだけ出る。押すたびに入り／切りが変わる（.on が付いているとき＝透明） -->
+    <div class="row" id="expAlphaRow" hidden>
+      <button id="expAlpha">背景を透明にする</button>
+    </div>
     <div id="expQualityRow" hidden>
       <div class="eq-head"><span>画質</span><b id="expQualityVal">90</b></div>
       <input type="range" id="expQuality" min="10" max="100" step="1" value="90">
@@ -2789,7 +2826,14 @@ const state = {
   //   位置・サイズ・回転・反転には触らないので、消したあともそのまま動かせる。
   eraseMode: false,     // 画像消しゴムモード（画像の単一選択時のみ）
   eraseTarget: null,    // 対象の画像ノード（eraseMode中だけ有効）
-  imgEraseSize: 30,     // ブラシの太さ。単位はキャンバス（ワールド）px＝ペイントのブラシと同じ
+  eraseHide: false,     // ★v233：赤いマスクの一時非表示（下の元画像を確かめるため）。
+                        //   立っている間はキャンバスをなぞっても塗らない（見えない所を消さないため）
+  eraseSub: 'mask',     // ★v234：画像消しゴム中の道具。'mask'＝赤ペン（塗る）／'unmask'＝消しゴム（赤を消す）
+                        //   ★v240：太さのスライダーは共用をやめ、道具ごとに別の値を覚える（下の2つ）
+  imgEraseSize: 30,     // 赤ペンの太さ。単位はキャンバス（ワールド）px＝ペイントのブラシと同じ
+  imgEraseSizeUn: 30,   // ★v240：消しゴム（赤を消す）の太さ。赤ペンとは別に覚える
+  imgEraseFix: 100,     // ★v235：確定時にかける輪郭補正の強さ。0で完全に素通し
+                        //   ★v238：実機で詰めた結果 100（＝上限）に決着
   gridOn: false,        // キャンバス全体グリッドの表示ON/OFF（ビュー設定。保存はしない）
   /* ★v216：トリミング中だけ使うグリッドの3段階。
        0 = キャンバス基準（ふだんのグリッドと同じもの）
@@ -3097,13 +3141,15 @@ function getImageEl(imageId){
 }
 
 // ── 画像ノードを描くときの「絵の出どころ」を1か所に集約（v78）────────────
-//   通常は state.images に入っている画像そのもの。
-//   ただし消しゴムモード中の対象ノードだけは、作業用キャンバス（消しかけの絵）を返す。
+//   state.images に入っている画像そのものを返す。
 //   drawNode()（画面表示）と drawTreeTo()（書き出し・サムネ）の両方がこれを使うので、
 //   ここを1か所直せば両方の見た目が必ず一致する。
 //   ※ 描画できない（まだ読み込み中など）ときは null を返す。呼ぶ側で握りつぶす。
+/* ★v233：消しゴムモード中に作業用キャンバス（消しかけの絵）を返す分岐を外した。
+   マスク方式では元画像に一切手を触れず、消したい範囲は別のキャンバス（eraseMask）に
+   赤で持つ。モード中の画像は元画像のまま表示し、その上に赤を重ねるだけになったので、
+   ここで出どころを差し替える必要がなくなった。赤を重ねるのは drawNode() の仕事。 */
 function imageSourceFor(node){
-  if(state.eraseMode && node === state.eraseTarget && eraseWork) return eraseWork;
   const im = getImageEl(node.imageId);
   return (im && im.complete && im.naturalWidth) ? im : null;
 }
@@ -3449,7 +3495,14 @@ function modeCrumbs(){
   // その上に重なっているモード。同時に2つ立つことはないので else if でつなぐ。
   if(state.cropMode)              c.push('トリミング');
   else if(state.rotateMode)       c.push('回転');
-  else if(state.eraseMode)        c.push('消しゴム');
+  else if(state.eraseMode){
+    c.push('画像消しゴム');
+    /* ★v234：いま持っている道具を必ず出す。ヘッダーのボタンは「押すとこうなる」絵を
+       出しているので、今の状態を言葉で確かめられるのはここだけ。 */
+    if(state.eraseHide) c.push('元画像を確認中');     // 隠している間は塗れないのでこちらを優先
+    else if(eraseMoveGrp) c.push('マスクを移動中');    // ★v237：塗れない状態なのでこれも優先
+    else c.push(state.eraseSub === 'unmask' ? '赤を消す' : '赤ペン');
+  }
   else if(state.canvasResizeMode){
     c.push('キャンバスツール');
     if(state.canvasMoveMode) c.push('移動');   // ★v226：枠ごと移動のサブモード
@@ -3688,8 +3741,24 @@ function drawNode(node, parentOpacity){
     const erased = (eraseState && eraseState.touched.get(node)) || null;
     renderPaintNode(ctx, node, erased);
   } else if(node.type === 'image'){
-    const src = imageSourceFor(node);          // v78：消しゴム中は作業用キャンバスが返る
+    const src = imageSourceFor(node);          // v233：モード中でも元画像そのものが返る
     if(src) ctx.drawImage(src, node.x, node.y, node.w, node.h);
+    /* ★v233：消しゴムモード中の対象画像だけ、マスク（消したい範囲）を赤で重ねる。
+       ・drawImage の引数が上の1行とまったく同じなので、位置・拡大縮小・回転・反転は
+         元画像に必ず一致する（ずれる余地が無い）。
+       ・マスク自体は不透明な赤で描いてある。半透明にするのはここ（表示するとき）だけ。
+         こうすると何度塗り重ねても濃さが変わらず、マスクの中身も 0 か 255 のまま保たれる。
+       ・目のボタン（#maskEyeBtn）で state.eraseHide を立てている間は重ねない。
+         元画像を確かめるための一時的な非表示で、マスクの中身には触っていない。 */
+    if(state.eraseMode && node === state.eraseTarget && eraseMask && !state.eraseHide){
+      const ga = ctx.globalAlpha;
+      ctx.globalAlpha = ERASE_MASK_ALPHA;
+      /* ★v241：補正後のプレビューがあればそちらを重ねる。無いとき（なぞっている最中・
+         補正0・ピンチ中）は生のマスク。大きさが違っても drawImage の引数は同じなので、
+         画像にぴったり合う点は変わらない。 */
+      ctx.drawImage(eraseFixPreview || eraseMask, node.x, node.y, node.w, node.h);
+      ctx.globalAlpha = ga;
+    }
   }
   ctx.restore();
   if(transforming) ctx.restore();             // 変形ぶんの変換を戻す
@@ -4051,6 +4120,21 @@ function updateMultiHeader(){
   const showGuideDraw = inGuide && state.guideOwner==='paint' && !state.guideDraw;
   setHdrVisible('guideDrawBtn', showGuideDraw);
   setHdrVisible('gSpDraw',     !showGuideDraw);
+  /* ★v233：モード行の3番目。赤の表示切替は消しゴムモード中だけ出し、
+     出していない間は同じ幅の空き枠に差し替える（✕と✔の位置を動かさないため）。 */
+  const showMaskEye = !!(state.eraseMode && state.eraseTarget);
+  setHdrVisible('maskEyeBtn',  showMaskEye);
+  setHdrVisible('mSpEye',     !showMaskEye);
+  updateMaskEyeBtn();
+  /* ★v234：モード行の4番目。消しゴムモード中だけ赤ペン／消しゴムの切替ボタンを出し、
+     そのあいだ角度・サイズの表示（#rotReadout）を引っ込める。どちらかが必ず居るので枠は動かない。 */
+  setHdrVisible('erasePenBtn',  showMaskEye);
+  setHdrVisible('rotReadout',  !showMaskEye);
+  updateErasePenBtn();
+  /* ★v236：モード行の5番目。前のマスクの貼り付けも消しゴムモード中だけ。 */
+  setHdrVisible('erasePasteBtn', showMaskEye);
+  setHdrVisible('mSpPaste',     !showMaskEye);
+  updateErasePasteBtn();
   // ── テキスト行の中身（v99）──────────────────────────
   //   コピー／ペースト／削除は「テキストボックスを1つ選んでいるとき」だけ出す。
   //   出していない間は同じ幅の空き枠に差し替えるので、右端の「完了」は動かない。
@@ -4869,10 +4953,13 @@ function renderSubbar(){
      何も選んでいないときだけ空にする。 */
   if(state.multi && state.tool==='select' && state.selNodes.length===0) return;
 
-  // 消しゴムモード中（v80）：太さの1行 ［−］［===スライダー===］［＋］［数値］。
-  //   （操作の案内は v148 で撤去）
+  /* 消しゴムモード中（v80／★v235で2段に・★v239で2段へ戻る）：
+       1段目 ［太さ］［−］［===スライダー===］［＋］［数値］ … ブラシの太さ
+       2段目 ［補正］［−］［===スライダー===］［＋］［数値］ … 輪郭補正の強さ
+     ★v236〜v238にあった「縁」の行は、値が 3.0 に決着したので定数へ畳んだ。 */
   if(state.eraseMode && state.eraseTarget){
     bar.appendChild(mkEraseSizeRow());
+    bar.appendChild(mkEraseFixRow());
     return;
   }
 
@@ -5038,7 +5125,7 @@ function mkRotateAdjustRow(inCrop){
 }
 // ── 消しゴムの太さプレビュー（v86／v87で修正）──────────────
 //   太さスライダーや±ボタンを押している間だけ、キャンバスに円を重ねて出す。
-//   円の直径は「実際に消える大きさ」＝ state.imgEraseSize × state.view.scale。
+//   円の直径は「実際に消える大きさ」＝ eraseSizeCur() × state.view.scale（★v240：道具ごとの太さ）。
 //   つまりピンチで拡大していれば円も大きくなる（[[peg-picto]]の drawBrushPreview と同じ物差し）。
 //   ★なぞっている間は出さない。止まっている円だから遅延が問題にならない、というのが要点。
 //
@@ -5058,7 +5145,7 @@ function updateEraseSizePreview(){
   if(!wrap || wrap.hidden) return;
   const circle = document.getElementById('espCircle');
   const label  = document.getElementById('espLabel');
-  const real = state.imgEraseSize * state.view.scale;       // 画面上の実寸（CSS px）
+  const real = eraseSizeCur() * state.view.scale;           // ★v240：いま持っている道具の太さ（画面上の実寸・CSS px）
   const max  = eraseSizePreviewMaxD();
   const d    = Math.min(real, max);
   // 輪郭の太さは円の大きさに合わせる（3px固定だと小さい円が輪郭に食われて潰れる）
@@ -5068,7 +5155,7 @@ function updateEraseSizePreview(){
   circle.style.borderWidth = bw + 'px';
   circle.classList.toggle('dot', d < 5);                    // 5px未満は塗りの点にする
   circle.classList.toggle('capped', real > max);            // 入りきらないときは破線にする
-  label.textContent = 'size ' + state.imgEraseSize;
+  label.textContent = 'size ' + eraseSizeCur();
 }
 // ── 出し入れ（v88で変更）────────────────────────────
 //   v87までは「指を離した瞬間に消す」だったが、±ボタンの1タップは0.1秒に満たないので
@@ -5134,47 +5221,102 @@ function attachEraseSizePreview(el){
   });
 })();
 
+/* 太さの行の見た目を、いま持っている道具の値に合わせて塗り直す（★v240）。
+   行を組み立てるとき（要素はまだ画面に入っていない）と、道具を切り替えたとき（すでに画面にある）の
+   両方から呼ぶので、要素は引数でも受け取れるようにしてある。 */
+function paintEraseSizeRow(rng, readout){
+  rng     = rng     || document.getElementById('eraseSizeRange');
+  readout = readout || document.getElementById('eraseSizeReadout');
+  if(!rng || !readout) return;
+  const v = eraseSizeCur();
+  rng.value = String(v);
+  readout.textContent = String(v);              // v86：単位は付けず数字だけ
+  // つまみより左をアクセント色で塗る（透明度スライダーと同じ見せ方）
+  const t = (v - ERASE_SIZE_MIN) / (ERASE_SIZE_MAX - ERASE_SIZE_MIN) * 100;
+  rng.style.background = 'linear-gradient(to right, var(--btn-on) 0%, var(--btn-on) '+t+'%, var(--line) '+t+'%, var(--line) 100%)';
+}
+
 // 消しゴムの太さの1行（v80）。並びは ［−］［===スライダー===］［＋］［数値］。
 //   ・単位はキャンバス（ワールド）px。ペイントのブラシと同じ物差し。
 //   ・−／＋は1px刻み。長押しで加速（attachRepeatPress）。スライダーが粗、ボタンが細かい担当。
 //   ・太さを変えても、すでに消した部分には影響しない（次のひと筆から効く）。
+//   ・★v240：この行が指しているのは「いま持っている道具」の太さ。赤ペンと消しゴムで別の値を持ち、
+//     道具を切り替えると toggleErasePen() からの paintEraseSizeRow() でつまみと数字が入れ替わる。
 function mkEraseSizeRow(){
   const f = document.createElement('div'); f.className='field';
   // v87：−／スライダー／＋ は10px間隔、＋と数値の間だけ 4px に詰める（下のmarginで調整）
-  f.style.cssText='display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0';
+  // ★v235：バーが2段になったので、行は横いっぱいに広げて縦には伸ばさない
+  f.style.cssText='display:flex;align-items:center;gap:10px;flex:0 0 auto;width:100%;min-width:0';
+  const lbl = document.createElement('div'); lbl.className='erlbl'; lbl.textContent='太さ';
   const readout = document.createElement('div'); readout.className='sizereadout';
+  readout.id='eraseSizeReadout';                      // ★v240：道具の切替から探せるようにする
   readout.style.marginLeft='-6px';
   const rng = document.createElement('input');
   rng.type='range'; rng.id='eraseSizeRange';
   rng.min = String(ERASE_SIZE_MIN); rng.max = String(ERASE_SIZE_MAX); rng.step='1';
   rng.style.flex='1';
-  const paint = ()=>{
-    rng.value = String(state.imgEraseSize);
-    readout.textContent = String(state.imgEraseSize);   // v86：単位は付けず数字だけ
-    // つまみより左をアクセント色で塗る（透明度スライダーと同じ見せ方）
-    const t = (state.imgEraseSize - ERASE_SIZE_MIN) / (ERASE_SIZE_MAX - ERASE_SIZE_MIN) * 100;
-    rng.style.background = 'linear-gradient(to right, var(--btn-on) 0%, var(--btn-on) '+t+'%, var(--line) '+t+'%, var(--line) 100%)';
-  };
+  const paint = ()=> paintEraseSizeRow(rng, readout);
   const setSize = (v)=>{
-    state.imgEraseSize = clamp(Math.round(v), ERASE_SIZE_MIN, ERASE_SIZE_MAX);
+    setEraseSizeCur(v);         // ★v240：いま持っている道具の入れ物へ書く
     paint();
     updateEraseSizePreview();   // v86：出ているときだけ円の大きさを合わせる
   };
   const minus = document.createElement('button'); minus.className='rotadj'; minus.textContent='−';
   minus.addEventListener('click', (e)=> e.preventDefault());
-  attachRepeatPress(minus, ()=> setSize(state.imgEraseSize - 1));
+  attachRepeatPress(minus, ()=> setSize(eraseSizeCur() - 1));
   const plus = document.createElement('button'); plus.className='rotadj'; plus.textContent='＋';
   plus.addEventListener('click', (e)=> e.preventDefault());
-  attachRepeatPress(plus, ()=> setSize(state.imgEraseSize + 1));
+  attachRepeatPress(plus, ()=> setSize(eraseSizeCur() + 1));
   rng.addEventListener('input', ()=> setSize(+rng.value));
   // v86：スライダーと±ボタンを押している間だけ太さプレビューを出す
   attachEraseSizePreview(rng);
   attachEraseSizePreview(minus);
   attachEraseSizePreview(plus);
   paint();
+  f.appendChild(lbl);
   f.appendChild(minus); f.appendChild(rng); f.appendChild(plus); f.appendChild(readout);
   return f;
 }
+
+/* ── 輪郭補正の強さ（★v235）──────────────────────────
+   確定するときにマスクへ掛ける補正の効き具合。0で完全に素通し＝v234までと同じ結果になる。
+   ★v241：動かすと画面の赤も追いかけるようになった（第4版）。ただしスライダーを
+     動かしている最中は作らず、手が止まってから1回だけ作り直す。
+   見た目・並びは太さの行とまったく同じにしてある（ラベル／−／スライダー／＋／数値）。 */
+function mkEraseFixRow(){
+  const f = document.createElement('div'); f.className='field';
+  f.style.cssText='display:flex;align-items:center;gap:10px;flex:0 0 auto;width:100%;min-width:0';
+  const lbl = document.createElement('div'); lbl.className='erlbl'; lbl.textContent='補正';
+  const readout = document.createElement('div'); readout.className='sizereadout';
+  readout.style.marginLeft='-6px';
+  const rng = document.createElement('input');
+  rng.type='range'; rng.id='eraseFixRange';
+  rng.min = String(ERASE_FIX_MIN); rng.max = String(ERASE_FIX_MAX); rng.step='1';
+  rng.style.flex='1';
+  const paint = ()=>{
+    rng.value = String(state.imgEraseFix);
+    readout.textContent = String(state.imgEraseFix);
+    const t = (state.imgEraseFix - ERASE_FIX_MIN) / (ERASE_FIX_MAX - ERASE_FIX_MIN) * 100;
+    rng.style.background = 'linear-gradient(to right, var(--btn-on) 0%, var(--btn-on) '+t+'%, var(--line) '+t+'%, var(--line) 100%)';
+  };
+  const setFix = (v)=>{
+    state.imgEraseFix = clamp(Math.round(v), ERASE_FIX_MIN, ERASE_FIX_MAX);
+    paint();
+    eraseFixPreviewSoon();     // ★v241：手が止まってから補正のプレビューを作り直す
+  };
+  const minus = document.createElement('button'); minus.className='rotadj'; minus.textContent='−';
+  minus.addEventListener('click', (e)=> e.preventDefault());
+  attachRepeatPress(minus, ()=> setFix(state.imgEraseFix - 1));
+  const plus = document.createElement('button'); plus.className='rotadj'; plus.textContent='＋';
+  plus.addEventListener('click', (e)=> e.preventDefault());
+  attachRepeatPress(plus, ()=> setFix(state.imgEraseFix + 1));
+  rng.addEventListener('input', ()=> setFix(+rng.value));
+  paint();
+  f.appendChild(lbl);
+  f.appendChild(minus); f.appendChild(rng); f.appendChild(plus); f.appendChild(readout);
+  return f;
+}
+
 // v101：mkBtn() と mkSep() は撤去した。どちらも mkTextFormatRow() 専用の部品で、
 //   下部バーの書式行が無くなったことで呼び出し元がゼロになった。
 // v104：PALETTE_swatches() は撤去した。文字色モーダルがスウォッチを自前で並べるようになり、
@@ -7766,14 +7908,25 @@ function bakeCrop(node, r){
 /* ══════════════════════════════
    #IMGERASE  画像消しゴム（v78）
    ══════════════════════════════
-   考え方：
+   考え方（★v233でマスク方式に作り替えた）：
      ・対象は画像オブジェクト1枚だけ。テキストとペイントは対象外。
-     ・モードに入ると、元画像と同じ解像度の「作業用キャンバス」を1枚作り、そこに元画像を写す。
-       以後、指でなぞった場所を destination-out で抜いていく（元画像には触らない）。
-     ・確定すると作業用キャンバスをPNGにして state.images へ登録し、ノードの imageId を
-       差し替える。位置・サイズ・回転・反転はそのまま。＝「動かせる穴あき画像」になる。
-     ・キャンセルすると作業用キャンバスを捨てるだけ。ノードは無傷。
+     ・モードに入ると、元画像と同じ解像度の「マスク用キャンバス」を1枚作る。中身は透明。
+       以後、指でなぞった場所に **不透明な赤** を source-over で塗っていく。
+       ＝ここに描かれているのは絵ではなく「消したい範囲」そのもの。
+     ・元画像には最後まで一切手を触れない。モード中の画面は元画像のままで、
+       その上にマスクを半透明で重ねて見せている（drawNode()）。
+     ・確定するとき初めて、元画像を写した新しいキャンバスにマスクを destination-out で
+       重ねて穴を空け、PNGにして state.images へ登録し、ノードの imageId を差し替える。
+       位置・サイズ・回転・反転はそのまま。＝「動かせる穴あき画像」になる。
+       （焼き込み方式そのものは v78 のまま維持している。変わったのは確定するまでの持ち方）
+     ・キャンセルするとマスクを捨てるだけ。ノードは無傷。
      ・ボード全体のUNDOは確定時に1回だけ積む（cropConfirm と同じ形）。
+
+   ★赤は「色」ではない、というのが方式の要点：
+     赤いピクセルを後から探して抜く、という作りにはしていない。抜くときに使うのは
+     マスクの **アルファ** で、赤は人間が見るための色でしかない。
+     （画像の上に赤を直接塗って後から赤を抜く形にすると、縁のアンチエイリアスで
+       中間色の帯ができ、まだらな点々が残る。それを避けるための分離）
    座標について（ここが一番ややこしいところ）：
      指の位置はワールド座標だが、消したい先は「画像の中の何ピクセル目か」。
      画像は移動・拡大縮小・回転・左右反転しているので、その変換を打ち消す必要がある。
@@ -7781,10 +7934,13 @@ function bakeCrop(node, r){
      「ワールド → 画像ピクセル」の変換を設定してしまい、ストロークはワールド座標のまま描く。
      こうすると回転・反転・拡大縮小が自動的に効き、太さも画面上で見たとおりの丸さになる。
 */
-let eraseWork = null;      // 作業用キャンバス（元画像と同じ解像度）
-let eraseWorkCtx = null;
+let eraseMask = null;      // マスク用キャンバス（元画像と同じ解像度・中身は透明＋不透明な赤）
+let eraseMaskCtx = null;
 let eraseStroke = null;    // ストローク中の状態 { lastX,lastY,midX,midY }
 let eraseDirty = false;    // 一度でも消したか（何もしていなければ確定を空振りさせる）
+// マスクの見せ方（★v233）。ここを変えても消える範囲は変わらない（表示だけの設定）。
+const ERASE_MASK_COLOR = '#ff3b30';   // マスクを塗る色。不透明で塗る
+const ERASE_MASK_ALPHA = 0.45;        // 画面に重ねるときの濃さ
 
 // ── ピンチ誤爆よけ（v82で方式変更）──────────────────
 //   ピンチズームは「1本目が触れる → 数十ミリ秒後に2本目が触れる」という順で起きる。
@@ -7802,14 +7958,30 @@ let eraseRedoOps = [];     // UNDOで取り消したぶん（REDOで戻す）
 const ERASE_SIZE_MIN = 2;  // 太さの下限（キャンバスpx）
 const ERASE_SIZE_MAX = 200;// 太さの上限（キャンバスpx）
 
-// ワールド座標 → 作業用キャンバスのピクセル座標 への変換を context に設定する。
+/* ── いま持っている道具の太さ（★v240）──────────────────
+   v239までは赤ペンと消しゴムで太さのスライダーを共用していたので、細かく塗り足したあとに
+   大きく消したいときは、道具を切り替えるたびにスライダーを触り直すことになっていた。
+   入れ物を道具ごとに2つへ分け、読み書きは必ずこの2つの関数を通す。
+   ★state.imgEraseSize を直に読み書きする書き方を新しく足さないこと。
+     片方の道具にしか効かない不具合になる。 */
+function eraseSizeCur(){
+  return (state.eraseSub === 'unmask') ? state.imgEraseSizeUn : state.imgEraseSize;
+}
+function setEraseSizeCur(v){
+  const n = clamp(Math.round(v), ERASE_SIZE_MIN, ERASE_SIZE_MAX);
+  if(state.eraseSub === 'unmask') state.imgEraseSizeUn = n;
+  else                            state.imgEraseSize   = n;
+  return n;
+}
+
+// ワールド座標 → マスク用キャンバスのピクセル座標 への変換を context に設定する。
 //   drawNode() が画像を描くときの変換（bbox中心まわりの 回転 → 左右反転）のちょうど逆を当てている。
-function setEraseWorkTransform(c2d, node){
+function setEraseMaskTransform(c2d, node){
   // node.w/h が 0 だと倍率が Infinity になって描画が全部消し飛ぶので保険をかける
   const nw = (node.w > 0) ? node.w : 1;
   const nh = (node.h > 0) ? node.h : 1;
-  const sx = eraseWork.width / nw;
-  const sy = eraseWork.height / nh;
+  const sx = eraseMask.width / nw;
+  const sy = eraseMask.height / nh;
   const b  = nodeBBox(node);                       // 画像は軸並行の {x,y,w,h}
   const cx = b.x + b.w/2, cy = b.y + b.h/2;
   const rot = (node.rotation || 0) * Math.PI / 180;
@@ -7824,32 +7996,43 @@ function setEraseWorkTransform(c2d, node){
   c2d.translate(-cx, -cy);
 }
 
-// 消す用の描画設定をまとめて当てる（ひと筆ごと・区間ごとに呼ぶ）
+// マスクを塗る／消す用の描画設定をまとめて当てる（ひと筆ごと・区間ごとに呼ぶ）
 //   太さは引数で受け取る。こうしておくと、スライダーで太さを変えたあとでも
 //   「そのストロークを描いたときの太さ」で再生できる（UNDOのやり直しで形が変わらない）。
-function beginEraseDraw(c2d, node, size){
+/* ★v233：destination-out（抜く）から source-over（塗る）へ変更。
+   ここで塗る赤は必ず不透明にする。半透明で塗ると、重ねたところだけ濃くなるうえに、
+   薄いところは確定時に「半分だけ消える」ことになってしまう。
+   画面上で半透明に見せるのは drawNode() の役目。 */
+/* ★v234：mode で赤ペンと消しゴムを切り替える。
+     'mask'   … source-over      ＝マスクに赤を足す（消したい範囲を広げる）
+     'unmask' … destination-out  ＝マスクから赤を削る（塗りすぎを戻す）
+   マスク方式にしたことで、この2つは同じ筆の向き違いというだけの完全に対称な操作になった。
+   元画像をもう一枚持つ必要はない（v232までの焼き込み方式では作れなかったもの）。
+   ★mode は「そのひと筆を描いたときの道具」として op に残す。そうしないと
+     UNDOで再生したときに、あとから切り替えた道具で描き直されて形が変わる。 */
+function beginEraseDraw(c2d, node, size, mode){
   c2d.save();
-  setEraseWorkTransform(c2d, node);
-  c2d.globalCompositeOperation = 'destination-out';
+  setEraseMaskTransform(c2d, node);
+  c2d.globalCompositeOperation = (mode === 'unmask') ? 'destination-out' : 'source-over';
   c2d.globalAlpha = 1;                             // 不透明度は100%固定（透明度は作らない方針）
   c2d.lineWidth   = Math.max(0.5, size);
   c2d.lineCap = 'round';
   c2d.lineJoin = 'round';
-  c2d.strokeStyle = '#000';
-  c2d.fillStyle   = '#000';
+  c2d.strokeStyle = ERASE_MASK_COLOR;
+  c2d.fillStyle   = ERASE_MASK_COLOR;
 }
 // ── 描画の最小部品（v80）──────────────────────────
 //   ライブ描画とUNDOの再生が、まったく同じ部品を同じ順で呼ぶようにしてある。
 //   こうしないと「UNDOしてやり直したら線の形が微妙に変わる」ということが起きる。
-function eraseDrawDot(size, x, y){          // 始点の丸（タップだけでも消えるように）
-  const c = eraseWorkCtx;
-  beginEraseDraw(c, state.eraseTarget, size);
+function eraseDrawDot(size, x, y, mode){    // 始点の丸（タップだけでも効くように）
+  const c = eraseMaskCtx;
+  beginEraseDraw(c, state.eraseTarget, size, mode);
   c.beginPath(); c.arc(x, y, Math.max(0.25, size/2), 0, Math.PI*2); c.fill();
   c.restore();
 }
-function eraseDrawSeg(size, x0,y0, cx,cy, x1,y1){   // 中点→中点を二次ベジェで結ぶ1区間
-  const c = eraseWorkCtx;
-  beginEraseDraw(c, state.eraseTarget, size);
+function eraseDrawSeg(size, x0,y0, cx,cy, x1,y1, mode){   // 中点→中点を二次ベジェで結ぶ1区間
+  const c = eraseMaskCtx;
+  beginEraseDraw(c, state.eraseTarget, size, mode);
   c.beginPath(); c.moveTo(x0, y0); c.quadraticCurveTo(cx, cy, x1, y1); c.stroke();
   c.restore();
 }
@@ -7859,23 +8042,26 @@ function eraseDrawSeg(size, x0,y0, cx,cy, x1,y1){   // 中点→中点を二次�
 //   そこで区間を描いたあと、指の位置まで直線を足して先端を指に届かせる。
 //   消す操作は同じ場所を二度消しても結果が変わらないので、毎回重ねて描いても害はない。
 //   ★ライブ描画とUNDOの再生が同じ形になるよう、eraseDrawOp() でも同じ順で呼ぶこと。
-function eraseDrawTip(size, x0,y0, x1,y1){
-  const c = eraseWorkCtx;
-  beginEraseDraw(c, state.eraseTarget, size);
+function eraseDrawTip(size, x0,y0, x1,y1, mode){
+  const c = eraseMaskCtx;
+  beginEraseDraw(c, state.eraseTarget, size, mode);
   c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
   c.restore();
 }
-// ひと筆ぶん（op = { size, pts:[{x,y},...] }）をまとめて描く。UNDOの再生用。
+// ひと筆ぶん（op = { size, mode, pts:[{x,y},...] }）をまとめて描く。UNDOの再生用。
+//   ★v234：mode を必ず op から取る（今の道具ではなく、その筆を描いたときの道具）。
+//     古い形の op（mode が無い）は赤ペンとして扱う。
 function eraseDrawOp(op){
   const pts = op && op.pts;
   if(!pts || !pts.length) return;
-  eraseDrawDot(op.size, pts[0].x, pts[0].y);
+  const md = (op.mode === 'unmask') ? 'unmask' : 'mask';
+  eraseDrawDot(op.size, pts[0].x, pts[0].y, md);
   let lx = pts[0].x, ly = pts[0].y, mx = lx, my = ly;
   for(let i=1; i<pts.length; i++){
     const px = pts[i].x, py = pts[i].y;
     const nx = (lx+px)/2, ny = (ly+py)/2;
-    eraseDrawSeg(op.size, mx,my, lx,ly, nx,ny);
-    eraseDrawTip(op.size, nx,ny, px,py);     // v82：ライブ描画と同じ穂先を足す
+    eraseDrawSeg(op.size, mx,my, lx,ly, nx,ny, md);
+    eraseDrawTip(op.size, nx,ny, px,py, md);     // v82：ライブ描画と同じ穂先を足す
     lx = px; ly = py; mx = nx; my = ny;
   }
 }
@@ -7889,15 +8075,19 @@ function enterEraseMode(){
   state.cropMode = false; state.cropRect = null;
   state.eraseMode = true;
   state.eraseTarget = n;
-  // 作業用キャンバス＝元画像と同じ解像度（画質を落とさないため）
-  eraseWork = document.createElement('canvas');
-  eraseWork.width  = im.naturalWidth;
-  eraseWork.height = im.naturalHeight;
-  eraseWorkCtx = eraseWork.getContext('2d');
-  eraseWorkCtx.drawImage(im, 0, 0);
-  eraseBaseImg = im;                               // やり直しのときはこれを貼り直す
+  /* ★v233：マスク用キャンバス＝元画像と同じ解像度（画質を落とさないため）。
+     中身は透明のまま。ここに元画像を写さないのが v232 までとの一番の違いで、
+     このキャンバスは「絵」ではなく「消したい範囲」を持つ入れ物になった。 */
+  eraseMask = document.createElement('canvas');
+  eraseMask.width  = im.naturalWidth;
+  eraseMask.height = im.naturalHeight;
+  eraseMaskCtx = eraseMask.getContext('2d');
+  eraseBaseImg = im;                               // 確定するときに穴を空ける相手
   eraseOps = []; eraseRedoOps = [];
   eraseStroke = null; eraseDirty = false;
+  eraseFixPreview = null;                          // ★v241：補正のプレビューも空から始める
+  state.eraseHide = false;                         // ★v233：赤の一時非表示は毎回オフから始める
+  state.eraseSub  = 'mask';                        // ★v234：道具も毎回「赤ペン」から始める
   updateMultiHeader();
   renderSubbar();
   updateUndoButtons();                             // ヘッダーのUNDO/REDOはモード用の履歴を見る
@@ -7907,30 +8097,459 @@ function enterEraseMode(){
 
 // モード状態だけを畳む（UIの更新はしない）。選択変更・ツール変更・UNDO復元から呼ぶ。
 function resetEraseState(){
+  eraseEndMaskMove();              // ★v237：動かしかけがあれば、その位置で確定してから畳む
+  eraseRememberMask();             // ★v236：畳む前に、塗ったマスクを控えておく。
+                                   //   選択の変更やツールの切り替えで抜けた場合もここを通る。
   hideEraseSizePreview();          // v86：出しっぱなしにならないよう畳む
   state.eraseMode = false;
   state.eraseTarget = null;
-  eraseWork = null; eraseWorkCtx = null;
+  eraseMask = null; eraseMaskCtx = null;
   eraseBaseImg = null; eraseOps = []; eraseRedoOps = [];
   eraseStroke = null; eraseDirty = false;
+  eraseFixPreview = null;          // ★v241：畳むときも手放す（大きいので抱えたままにしない）
+  state.eraseHide = false;         // ★v233：非表示のまま抜けて次回に持ち越さない
+  state.eraseSub  = 'mask';        // ★v234：道具も持ち越さない
+  eraseMoveGrp = null; eraseMoveBase = null; eraseMoveLayer = null;   // ★v237
+  eraseMoveDX = 0; eraseMoveDY = 0;
 }
 function exitEraseMode(){
-  resetEraseState();
+  resetEraseState();       // ★v236：マスクの控えは resetEraseState() の中で行っている
   updateMultiHeader();
   renderSubbar();
   updateUndoButtons();     // モードを抜けたらボード本体のUNDO/REDOの状態へ戻す
   requestRender();
 }
+
+/* ── マスクの控えと貼り付け（★v236）────────────────────
+   確定してもキャンセルしても、モードを抜けるときに「塗ったひと筆の並び」を控えておく。
+   次に消しゴムモードへ入ったとき、ヘッダーの貼り付けボタンで同じマスクを引き直せる。
+
+   きっかけは補正の効き具合を見比べる作業で、同じ範囲を何度も塗り直すことになったため。
+   確定 → 見る → UNDO → 入り直す → 貼り付け → 補正の値を変えて確定、という流れが1タップで回る。
+
+   ★控えるのはピクセルではなく筆の軌跡。マスク1枚（4000×3000で12MB）を抱えずに済み、
+     再生には既存の eraseDrawOp() をそのまま使える。
+   ★軌跡はワールド座標なので、貼り付け先の画像が動いていたり大きさが変わっていると
+     ずれる。そのときの位置・大きさ・角度・反転も一緒に控えておき、食い違ったら知らせる。
+   ★アプリを閉じると消える（保存はしない）。 */
+let eraseSavedMask = null;   // { ops:[...], geo:{x,y,w,h,rotation,flipX} }
+
+function eraseRememberMask(){
+  const n = state.eraseTarget;
+  if(!n || !eraseOps.length) return;
+  eraseSavedMask = {
+    ops: eraseOps.map(o => ({ size:o.size, mode:o.mode, pts:o.pts.map(p=>({x:p.x, y:p.y})) })),
+    geo: { x:n.x, y:n.y, w:n.w, h:n.h, rotation:(n.rotation||0), flipX:!!n.flipX }
+  };
+}
+function updateErasePasteBtn(){
+  const btn = document.getElementById('erasePasteBtn');
+  if(!btn) return;
+  const moving = !!eraseMoveGrp;                    // ★v237：移動中はボタンが「決定」に変わる
+  btn.classList.toggle('on', moving);
+  btn.disabled = !moving && !(eraseSavedMask && eraseSavedMask.ops.length);
+  btn.title = moving ? 'この位置で決定' : '前のマスクを貼り付け';
+}
+// ボタンの役割は状況で入れ替わる：ふつうは貼り付け、動かしている最中は置き場所の決定。
+function erasePasteBtnTap(){
+  if(eraseMoveGrp) eraseEndMaskMove();
+  else erasePasteMask();
+}
+function erasePasteMask(){
+  if(!state.eraseMode || !state.eraseTarget || !eraseSavedMask) return;
+  const n = state.eraseTarget, g = eraseSavedMask.geo;
+  const moved = Math.abs(g.x - n.x) > 0.5 || Math.abs(g.y - n.y) > 0.5 ||
+                Math.abs(g.w - n.w) > 0.5 || Math.abs(g.h - n.h) > 0.5 ||
+                Math.abs(g.rotation - (n.rotation||0)) > 0.01 || g.flipX !== !!n.flipX;
+  // 貼り付けた筆はひとまとまりとして扱う。UNDO 1回でまるごと取り消せるようにするため。
+  const grp = 'mp' + Date.now();
+  eraseSavedMask.ops.forEach(o => {
+    const op = { size:o.size, mode:o.mode, grp:grp, pts:o.pts.map(p=>({x:p.x, y:p.y})) };
+    eraseOps.push(op);
+    eraseDrawOp(op);
+  });
+  eraseRedoOps.length = 0;
+  eraseDirty = true;
+  eraseBeginMaskMove(grp);          // ★v237：貼り付けたらそのまま動かせる状態に入る
+  updateUndoButtons();
+  requestRender();
+  toast(moved ? '貼り付けました。ずれているのでドラッグで合わせてください'
+              : '貼り付けました。ドラッグで動かせます');
+}
+
+/* ── 貼り付けたマスクの移動（★v237）───────────────────
+   貼り付けた直後は、そのひとまとまりを指でドラッグして位置を合わせられる。
+   もう一度貼り付けボタンを押すと置き場所が決まって、ふつうの塗りに戻る。
+
+   ◆ なぜ2枚に分けるか
+     筆の軌跡はワールド座標で持っているので、動かすこと自体は全部の点に足し算するだけ。
+     ただしそれをドラッグのたびにやると、毎フレーム何百本もの筆を引き直すことになって
+     大きな画像で間に合わない。そこで動かし始めるときに一度だけ
+       ・動かさない部分（eraseMoveBase）
+       ・動かすひとまとまり（eraseMoveLayer）
+     の2枚に焼き分け、ドラッグ中は「2枚を重ねて描く」だけにしてある。1フレームに
+     drawImage が2回で済むので、筆の本数がいくつあっても速さは変わらない。
+
+   ◆ 指の動き（ワールド）→ マスクの中でのずれ
+     マスクへ描くときの変換の、平行移動を除いた部分を指の移動量に当てれば求まる。
+     回転・反転・拡大縮小がそのまま効くので、傾いた画像でも指なりに動く。
+
+   ★ドラッグ中の見た目だけ、ひとつ近似が入る。重ねて描いているので、
+     動かしているマスクの中に「消しゴムで削った跡」が含まれていても、その削りは
+     下の（動かさない）マスクまでは届かない。指を離した時点で全部を引き直すので、
+     出来上がりは必ず正しくなる。 */
+let eraseMoveGrp   = null;   // 動かしている最中のひとまとまりの目印（nullなら移動中でない）
+let eraseMoveBase  = null;   // 動かさない部分を焼いたキャンバス
+let eraseMoveLayer = null;   // 動かすひとまとまりを焼いたキャンバス
+let eraseMoveDX = 0, eraseMoveDY = 0;   // ワールド座標でのずれ
+
+function eraseBeginMaskMove(grp){
+  if(!eraseMask) return;
+  const w = eraseMask.width, h = eraseMask.height;
+  const mk = ()=>{ const c = document.createElement('canvas'); c.width=w; c.height=h; return c; };
+  eraseMoveBase  = mk();
+  eraseMoveLayer = mk();
+  // eraseDrawOp() は eraseMaskCtx へ描くので、描き先をいったん差し替えて2枚に焼き分ける
+  const real = eraseMaskCtx;
+  eraseMaskCtx = eraseMoveBase.getContext('2d');    // ① 動かさない部分
+  eraseOps.filter(o => o.grp !== grp).forEach(eraseDrawOp);
+  eraseMaskCtx = eraseMoveLayer.getContext('2d');   // ② 動かすひとまとまり
+  eraseOps.filter(o => o.grp === grp).forEach(eraseDrawOp);
+  eraseMaskCtx = real;                              // 本物のマスクへ戻す
+  eraseMoveGrp = grp; eraseMoveDX = 0; eraseMoveDY = 0;
+  eraseComposeMaskMove();
+  updateErasePasteBtn();
+  updateModeBadge();
+}
+// ワールドのずれ (dx,dy) を、マスクの中でのずれ (x,y) に直す
+function eraseMoveOffsetPx(dx, dy){
+  const c = eraseMaskCtx;
+  c.save();
+  setEraseMaskTransform(c, state.eraseTarget);
+  const m = c.getTransform();
+  c.restore();
+  return { x: m.a*dx + m.c*dy, y: m.b*dx + m.d*dy };
+}
+function eraseComposeMaskMove(){
+  if(!eraseMoveGrp || !eraseMask) return;
+  const o = eraseMoveOffsetPx(eraseMoveDX, eraseMoveDY);
+  const c = eraseMaskCtx;
+  c.setTransform(1,0,0,1,0,0);
+  c.globalCompositeOperation = 'source-over';
+  c.globalAlpha = 1;
+  c.clearRect(0, 0, eraseMask.width, eraseMask.height);
+  c.drawImage(eraseMoveBase, 0, 0);
+  c.drawImage(eraseMoveLayer, o.x, o.y);
+  eraseFixPreview = null;      // ★v241：動かしている間は生の赤。置き場所が決まったら作り直す
+  requestRender();
+}
+function eraseDragMaskMove(dxWorld, dyWorld){
+  if(!eraseMoveGrp) return;
+  eraseMoveDX += dxWorld; eraseMoveDY += dyWorld;
+  eraseComposeMaskMove();
+}
+// 置き場所を決める：ずれを筆の軌跡そのものへ焼き込んで、ふつうの塗りに戻す
+function eraseEndMaskMove(){
+  if(!eraseMoveGrp) return;
+  const grp = eraseMoveGrp, dx = eraseMoveDX, dy = eraseMoveDY;
+  eraseMoveGrp = null; eraseMoveBase = null; eraseMoveLayer = null;
+  eraseMoveDX = 0; eraseMoveDY = 0;
+  if(dx || dy){
+    eraseOps.forEach(op => {
+      if(op.grp !== grp) return;
+      op.pts.forEach(p => { p.x += dx; p.y += dy; });
+    });
+  }
+  eraseRebuild();          // ここで全部を引き直すので、見た目の近似は無かったことになる
+  updateErasePasteBtn();
+  updateModeBadge();
+}
 function eraseCancel(){ exitEraseMode(); toast('消しゴムをキャンセル'); }
+
+/* ── 赤いマスクの一時非表示（★v233）────────────────────
+   下の元画像を確かめるための表示の切り替えで、マスクの中身にはまったく触らない。
+   何度切り替えても塗った内容は失われず、UNDOの履歴にも残らない。
+   ★隠している間はキャンバスをなぞっても塗らない（#POINTER の分岐で受け止めている）。
+     赤が見えない状態で消し進めると、戻したときに驚くことになるため。
+     そのかわり画面の移動と拡大縮小はできるので、隠したまま隅々まで確かめられる。 */
+function updateMaskEyeBtn(){
+  const btn = document.getElementById('maskEyeBtn');
+  if(!btn) return;
+  const hid = !!state.eraseHide;
+  btn.classList.toggle('on', hid);            // 隠している間はボタンを光らせる（塗れない合図）
+  btn.title = hid ? '赤を表示する' : '赤を隠して元画像を見る';
+  const slash = document.getElementById('maskEyeSlash');
+  if(slash) slash.style.display = hid ? '' : 'none';   // 斜線は隠しているときだけ
+}
+function toggleMaskEye(){
+  if(!state.eraseMode || !state.eraseTarget) return;
+  state.eraseHide = !state.eraseHide;
+  if(eraseStroke) eraseStroke = null;         // 引きかけの筆が残らないようにする（保険）
+  updateMaskEyeBtn();
+  updateModeBadge();
+  requestRender();
+}
+
+/* ── 赤ペンと消しゴムの切替（★v234）──────────────────────
+   マスクに赤を足す筆と、マスクから赤を削る筆。
+   ★v240：太さは道具ごとに別々に覚えるので、切り替えたときに下部バーの太さの行も入れ替える。
+   ボタンの絵は「いま使っていない方の道具」を出す＝押すとその道具になる、という見せ方
+   （PEGの指定）。いま何を持っているかは左下のモードバッジに出す。
+   ★これは表示だけの切替ではなく次に描く筆の向きが変わるだけなので、
+     マスクの中身にもUNDOの履歴にも触らない。 */
+function updateErasePenBtn(){
+  const btn = document.getElementById('erasePenBtn');
+  if(!btn) return;
+  const un = (state.eraseSub === 'unmask');
+  // 消しゴムを持っているときはペンの絵、赤ペンを持っているときは消しゴムの絵
+  const pen = document.getElementById('epIconPen');
+  const era = document.getElementById('epIconEraser');
+  if(pen) pen.style.display = un ? '' : 'none';
+  if(era) era.style.display = un ? 'none' : '';
+  btn.title = un ? '赤ペンに切り替える' : '消しゴムに切り替える';
+}
+function toggleErasePen(){
+  if(!state.eraseMode || !state.eraseTarget) return;
+  eraseEndMaskMove();                         // ★v237：塗りに戻る前に置き場所を決める
+  state.eraseSub = (state.eraseSub === 'unmask') ? 'mask' : 'unmask';
+  if(eraseStroke) eraseStroke = null;         // 引きかけの筆の途中で道具が変わらないようにする
+  paintEraseSizeRow();                        // ★v240：太さのつまみと数字を、切り替えた側の値へ入れ替える
+  updateErasePenBtn();
+  updateModeBadge();
+}
 
 // 確定：作業用キャンバスを新しい画像として登録し、imageId を差し替える。
 //   トリミング（cropConfirm）と違い、位置・サイズ・回転・反転には一切触らない。
+/* ══ 輪郭補正（★v235）══════════════════════════════
+   指でなぞった境界は、ストロークの円が連なったガタガタになる。
+   そこで確定する直前に、マスクへ次の2つを掛ける。
+
+     ① ぼかす      … 0か255だった値が、境界のまわりだけなだらかな傾斜になる。
+                      細かい凹凸はこの傾斜の中に均されて消える。
+     ② 立て直す    … 強いコントラストを掛けると、傾斜の真ん中を通る線で切り直される。
+                      ＝縁は元どおりくっきりしたまま、形だけがなだらかになる。
+
+   ★これは「ぼかす」加工ではない。出来上がりの縁はぼけない。
+     ぼかしは①の途中経過でしかなく、②で必ず立て直している。
+     ぼかしたまま止めると縁が薄くふやけるが、そうはならない。
+
+   ★掛かるのはマスク1チャンネルだけ。画像のRGBには一切触らないので、
+     毛や模様といった絵の中身がぼけることはない。
+
+   ★副作用：滑らかにしたくない所まで滑らかになる。白フチのように元から
+     なだらかな曲線とは相性が良いが、毛先が背景に散っている画像に強く掛けると
+     毛先が丸まって団子になる。だから常時ではなく強さで加減する。
+
+   ・ぼかしはボックスぼかしを3回重ねてガウスに近づけ、横方向と縦方向に分けて掛ける。
+     ボックスぼかしは移動平均なので、半径をいくら大きくしても1画素あたりの計算量は変わらない。
+   ・コントラストは256要素の表を1回引くだけ。
+*/
+const ERASE_FIX_MIN = 0;
+/* 上限は100。v237で200まで広げて実機で確かめた結果、100より上は輪郭が
+   ところどころ割れて壊れる（PEG報告）ため、v238で100へ戻した。
+   ★理由：ぼかしの半径が大きくなりすぎると、細い部分や角のあたりでマスクの値が
+     どこも128に届かなくなる。そこへコントラストを掛けると一気に0側へ倒れるので、
+     繋がっていた輪郭がぶつ切りになる。＝この方式が破綻する境目が100の少し上にある。
+   ★ここを再び広げないこと。広げても使える範囲は増えず、壊れる領域が増えるだけ。 */
+const ERASE_FIX_MAX = 100;
+// 強さ100のときのぼかし半径を、画像の短辺に対する割合で決める。
+//   画像の大きさによらず同じように効かせるための正規化。
+//   ★実機で詰めた結果、この値のまま「強さ100」が使える上限ちょうどになった。
+//     上げると強さ100で輪郭が割れ始めるので、上げないこと。
+const ERASE_FIX_MAX_R = 0.015;
+/* 立て直したあとの縁の切れ味。大きいほどくっきり。
+   ぼかし半径に比例させてあるので、補正の強さを変えても縁の柔らかさは一定に保たれる。
+   ★経緯：v235は 1.2 で固定していたが「補正をかけると縁がふんわりする」という結果になった。
+     v236〜v238で下部バーにスライダーを出して実機で詰め、3.0 に決着したので
+     v239でスライダーを畳んで定数へ戻した（下部バーが1段減ってキャンバスが広くなる）。
+   ★試した範囲：0.5〜4.0。1.2前後は柔らかすぎ、4.0近くは中間調が消えて2値になり、
+     拡大したときにジャギが戻る。3.0より上は見た目がほとんど変わらない（頭打ち）。
+   ★再びスライダーに戻す必要は無い。動かしても良くなる方向が無いことが確かめてある。 */
+const ERASE_FIX_EDGE = 3.0;
+
+// 横方向の移動平均。端の外側は端の値を伸ばして埋める（縁が痩せないように）。
+function eraseBoxBlurH(src, dst, w, h, r){
+  const win = r*2 + 1;
+  for(let y=0; y<h; y++){
+    const row = y*w;
+    let sum = 0;
+    for(let i=-r; i<=r; i++){
+      const x = i<0 ? 0 : (i>=w ? w-1 : i);
+      sum += src[row + x];
+    }
+    for(let x=0; x<w; x++){
+      dst[row + x] = (sum/win + 0.5) | 0;
+      const xo = x - r, xi = x + r + 1;
+      sum -= src[row + (xo<0 ? 0 : xo)];
+      sum += src[row + (xi>=w ? w-1 : xi)];
+    }
+  }
+}
+// 縦方向の移動平均。中身は横と同じで、進む向きが違うだけ。
+function eraseBoxBlurV(src, dst, w, h, r){
+  const win = r*2 + 1;
+  for(let x=0; x<w; x++){
+    let sum = 0;
+    for(let i=-r; i<=r; i++){
+      const y = i<0 ? 0 : (i>=h ? h-1 : i);
+      sum += src[y*w + x];
+    }
+    for(let y=0; y<h; y++){
+      dst[y*w + x] = (sum/win + 0.5) | 0;
+      const yo = y - r, yi = y + r + 1;
+      sum -= src[(yo<0 ? 0 : yo)*w + x];
+      sum += src[(yi>=h ? h-1 : yi)*w + x];
+    }
+  }
+}
+function eraseFixRadius(w, h, strength){
+  /* ★v237：ここは必ず 100 で割る（ERASE_FIX_MAX ではない）。
+     上限を100→200へ広げたときに ERASE_FIX_MAX で割っていると、
+     同じ「100」でも効き方が半分になってしまい、実機で確かめた値が意味を失う。
+     100 で割っておけば、上限をいくつに変えても数字の意味は変わらない。 */
+  const t = clamp(strength, ERASE_FIX_MIN, ERASE_FIX_MAX) / 100;
+  if(t <= 0) return 0;
+  return Math.max(1, Math.round(t * ERASE_FIX_MAX_R * Math.min(w, h)));
+}
+/* 補正を掛けた結果を新しいキャンバスとして返す。強さ0のときは渡されたものをそのまま返す。
+   ★渡されたキャンバスは書き換えない。確定に失敗しても作業中の内容が壊れないようにするため。
+   ★v241：中身は v235 から変えていない。変えたのは「相手を引数で受け取るようにした」ことだけ。
+     確定のときは原寸のマスクを、画面に出すプレビューのときは縮小したマスクを渡す。
+     ぼかしの半径は渡されたものの短辺から決まるので、縮めても効き方は同じになる。 */
+function eraseFixCanvas(src, strength){
+  const w = src.width, h = src.height;
+  const r = eraseFixRadius(w, h, strength);
+  if(r <= 0) return src;                              // 0＝完全に素通し（v234までと同じ結果）
+  const id = src.getContext('2d').getImageData(0, 0, w, h);
+  const d  = id.data;
+  const n  = w * h;
+  // マスクの本体はアルファ1チャンネルだけ。ここへ取り出して数値として扱う。
+  let a = new Uint8Array(n), b = new Uint8Array(n);
+  for(let i=0, p=3; i<n; i++, p+=4) a[i] = d[p];
+  for(let pass=0; pass<3; pass++){                    // ① ぼかす（3回でガウスに近づく）
+    eraseBoxBlurH(a, b, w, h, r);
+    eraseBoxBlurV(b, a, w, h, r);
+  }
+  const k = Math.max(2, r * ERASE_FIX_EDGE);          // ② 立て直す
+  const lut = new Uint8Array(256);
+  for(let v=0; v<256; v++){
+    const q = Math.round((v - 128) * k + 128);
+    lut[v] = q<0 ? 0 : (q>255 ? 255 : q);
+  }
+  // RGBはマスクの赤で埋め直す。ぼかしで広がった部分のRGBは0（黒）のままなので、
+  // そのままだと万一表示に使ったときに黒いフチが出る。抜くのに使うのはアルファだけだが、
+  // 中身の意味を保っておく。
+  const cr = parseInt(ERASE_MASK_COLOR.slice(1,3), 16);
+  const cg = parseInt(ERASE_MASK_COLOR.slice(3,5), 16);
+  const cb = parseInt(ERASE_MASK_COLOR.slice(5,7), 16);
+  for(let i=0, p=0; i<n; i++, p+=4){
+    d[p] = cr; d[p+1] = cg; d[p+2] = cb; d[p+3] = lut[a[i]];
+  }
+  a = null; b = null;                                 // 大きい配列は早めに手放す
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  out.getContext('2d').putImageData(id, 0, 0);
+  return out;
+}
+// 確定用：原寸のマスクへ補正を掛ける（v235からの呼び名をそのまま残してある）
+function eraseBuildFixedMask(strength){
+  if(!eraseMask) return null;
+  return eraseFixCanvas(eraseMask, strength);
+}
+
+/* ══ 補正のプレビュー（★v241・第4版）════════════════════
+   v240までは、補正が掛かった姿は確定して初めて分かった。ここでは指を離した時点で
+   補正後の形を赤で見せる。
+
+   ◆ 生のマスクは絶対に書き換えない
+     補正済みの絵でマスク本体を上書きすると、ひと筆ごとにぼかしが積み重なって
+     形がどんどん丸まっていく。そこで補正後の絵は「表示専用のもう1枚」として持ち、
+     画面へ赤を重ねるときだけそちらを使う。マスク本体・筆の履歴・確定の処理は
+     v240までと1行も変えていない。＝この機能を外しても仕上がりは変わらない。
+
+   ◆ 縮小して作る
+     補正はマスク全体を6回なめる処理なので、原寸（4000×3000など）で指を離すたびに
+     走らせると一瞬固まる。プレビューは画面に映れば足りるので、長辺が上限を超える場合は
+     縮めてから掛ける。ぼかしの半径は短辺に比例して決まるため、縮めても見た目の効き方は同じ。
+   ◆ 実機で自分から軽くする
+     1回の所要時間を測り、予算を超えたら上限を下げて作り直す範囲を狭める。
+     どの端末・どの画像でも「指を離したら固まる」が起きないようにするための保険。
+     ★下限より下げないこと。縮めすぎると拡大したときにプレビューの縁が階段になる。
+
+   ◆ 見え方
+     なぞっている間は生の赤（補正なし）、指を離した瞬間に補正後の形へ切り替わる。
+     ピンチしている間もプレビューは外す（指が全部離れたら作り直す）。 */
+const ERASE_FIXPV_CAP0   = 2000;  // プレビュー用マスクの長辺の上限（初期値・px）
+const ERASE_FIXPV_CAP_MIN= 700;   // 自分から下げるときの下限
+const ERASE_FIXPV_BUDGET = 120;   // 1回にかけてよい時間（ms）。超えたら上限を下げる
+let eraseFixPreview = null;       // 補正後の表示専用マスク（nullなら生のマスクを出す）
+let eraseFixPvCap   = ERASE_FIXPV_CAP0;
+let _eraseFixPvTimer = 0;
+
+// 作り直す。作れない・作る意味がないときは null に戻して生のマスクを見せる。
+function eraseSyncFixPreview(){
+  if(_eraseFixPvTimer){ clearTimeout(_eraseFixPvTimer); _eraseFixPvTimer = 0; }
+  eraseFixPreview = null;
+  if(!state.eraseMode || !eraseMask || !eraseOps.length) return;
+  if(state.imgEraseFix <= ERASE_FIX_MIN){ requestRender(); return; }   // 補正なし＝生のままでよい
+  const t0 = performance.now();
+  const w = eraseMask.width, h = eraseMask.height;
+  const k = Math.min(1, eraseFixPvCap / Math.max(w, h));
+  let src = eraseMask;
+  if(k < 1){
+    const sw = Math.max(1, Math.round(w*k)), sh = Math.max(1, Math.round(h*k));
+    const sm = document.createElement('canvas'); sm.width = sw; sm.height = sh;
+    sm.getContext('2d').drawImage(eraseMask, 0, 0, sw, sh);
+    src = sm;
+  }
+  const out = eraseFixCanvas(src, state.imgEraseFix);
+  eraseFixPreview = (out === src) ? null : out;      // 素通しだったときは生のマスクに任せる
+  const ms = performance.now() - t0;
+  if(ms > ERASE_FIXPV_BUDGET && eraseFixPvCap > ERASE_FIXPV_CAP_MIN){
+    eraseFixPvCap = Math.max(ERASE_FIXPV_CAP_MIN, Math.round(eraseFixPvCap * 0.7));
+  }
+  requestRender();
+}
+// 補正のスライダー用。動かしている間は作らず、手が止まってから1回だけ作る。
+function eraseFixPreviewSoon(){
+  eraseFixPreview = null;
+  requestRender();
+  if(_eraseFixPvTimer) clearTimeout(_eraseFixPvTimer);
+  _eraseFixPvTimer = setTimeout(()=>{ _eraseFixPvTimer = 0; eraseSyncFixPreview(); }, 250);
+}
+
+/* ★v233：ここが新方式の要。マスクは「消したい範囲」でしかないので、
+   確定するこの瞬間に初めて元画像へ当てて穴を空ける。
+     ① 出力用のキャンバスに元画像を写す
+     ② destination-out でマスクを重ねる
+        → 重なった所は、マスクのアルファのぶんだけ元画像が抜ける
+        → 縁のアンチエイリアス（半端なアルファ）は「半分だけ消える」になる。
+          これは正しい仕上がりで、色を頼りに抜いたときのような点々は出ない
+     ③ PNGにして新しい画像として登録する（以降は v78 からの流れと同じ）
+   ※第2版の補正処理は ① と ② の間に入る。マスクにぼかしとコントラストを掛けてから
+     重ねるだけなので、ここの形は変えずに済む。 */
 function eraseConfirm(){
   const n = state.eraseTarget;
-  if(!state.eraseMode || !n || !eraseWork){ exitEraseMode(); return; }
-  if(!eraseOps.length){ exitEraseMode(); toast('消した箇所がありません'); return; }
+  if(!state.eraseMode || !n || !eraseMask){ exitEraseMode(); return; }
+  eraseEndMaskMove();                               // ★v237：動かしかけを軌跡へ焼き込んでから確定する
+  /* ★v234：赤ペンで塗った筆が1本も無ければ空振りさせる。
+     消しゴムだけを使った（塗って全部消した等）場合はマスクが空なので、
+     確定しても元画像と同じものができるだけになる。 */
+  if(!eraseOps.some(o => (o.mode || 'mask') !== 'unmask')){
+    exitEraseMode(); toast('消した箇所がありません'); return;
+  }
   let dataURL;
-  try{ dataURL = eraseWork.toDataURL('image/png'); }   // 透明を残すので必ずPNG
+  try{
+    const out = document.createElement('canvas');
+    out.width  = eraseMask.width;
+    out.height = eraseMask.height;
+    const oc = out.getContext('2d');
+    oc.drawImage(eraseBaseImg, 0, 0);                 // ① 元画像
+    oc.globalCompositeOperation = 'destination-out';
+    // ★v235：ここで初めて輪郭補正を掛ける。強さ0なら元のマスクがそのまま返る。
+    oc.drawImage(eraseBuildFixedMask(state.imgEraseFix), 0, 0);   // ② マスクのぶんだけ抜く
+    dataURL = out.toDataURL('image/png');             // ③ 透明を残すので必ずPNG
+  }
   catch(e){ exitEraseMode(); toast('確定に失敗しました'); return; }
   const newId = genId('img');
   state.images[newId] = dataURL;
@@ -7956,23 +8575,27 @@ function eraseConfirm(){
 function eraseAbortForPinch(){
   if(!eraseStroke) return;
   eraseStroke = null;
-  eraseRebuild();          // 確定済みの筆だけの状態へ戻す（requestRender込み）
+  eraseRebuild(true);      // 確定済みの筆だけの状態へ戻す（requestRender込み）
 }
 
 function eraseBeginStroke(wx, wy){
-  if(!eraseWork || !state.eraseTarget) return;
-  const size = state.imgEraseSize;                 // 太さはひと筆の始めに決めて、その筆の間は変えない
-  eraseDrawDot(size, wx, wy);
-  eraseStroke = { size:size, lastX:wx, lastY:wy, midX:wx, midY:wy, pts:[{x:wx, y:wy}] };
+  if(!eraseMask || !state.eraseTarget) return;
+  if(state.eraseHide) return;                      // ★v233：赤を隠している間は塗らない
+  eraseFixPreview = null;                          // ★v241：なぞっている間は補正なしの生の赤を見せる
+  const size = eraseSizeCur();                     // 太さはひと筆の始めに決めて、その筆の間は変えない（★v240：道具ごとの値）
+  const mode = (state.eraseSub === 'unmask') ? 'unmask' : 'mask';   // ★v234：道具も同じくひと筆の始めに決める
+  eraseDrawDot(size, wx, wy, mode);
+  eraseStroke = { size:size, mode:mode, lastX:wx, lastY:wy, midX:wx, midY:wy, pts:[{x:wx, y:wy}] };
   eraseDirty = true;
   requestRender();
 }
 function eraseStrokeTo(wx, wy){
-  if(!eraseWork || !eraseStroke || !state.eraseTarget) return;
+  if(!eraseMask || !eraseStroke || !state.eraseTarget) return;
+  if(state.eraseHide) return;                      // ★v233：同上（念のための二重の受け止め）
   const s = eraseStroke;
   const mx = (s.lastX + wx)/2, my = (s.lastY + wy)/2;
-  eraseDrawSeg(s.size, s.midX, s.midY, s.lastX, s.lastY, mx, my);
-  eraseDrawTip(s.size, mx, my, wx, wy);            // v82：先端を指の位置まで届かせる
+  eraseDrawSeg(s.size, s.midX, s.midY, s.lastX, s.lastY, mx, my, s.mode);
+  eraseDrawTip(s.size, mx, my, wx, wy, s.mode);    // v82：先端を指の位置まで届かせる
   s.lastX = wx; s.lastY = wy; s.midX = mx; s.midY = my;
   s.pts.push({ x:wx, y:wy });                      // UNDOで再生できるように軌跡を残す
   eraseDirty = true;
@@ -7980,12 +8603,13 @@ function eraseStrokeTo(wx, wy){
 }
 function eraseEndStroke(){
   if(eraseStroke && eraseStroke.pts.length){
-    eraseOps.push({ size:eraseStroke.size, pts:eraseStroke.pts });  // ひと筆＝UNDO 1回ぶん
+    eraseOps.push({ size:eraseStroke.size, mode:eraseStroke.mode, pts:eraseStroke.pts });  // ひと筆＝UNDO 1回ぶん
     eraseRedoOps.length = 0;                       // 新しく描いたらREDOは無効になる
     eraseDirty = true;
     updateUndoButtons();
   }
   eraseStroke = null;
+  eraseSyncFixPreview();     // ★v241：ここが第4版の入口。補正後の形へ切り替わる
   requestRender();
 }
 
@@ -7993,31 +8617,59 @@ function eraseEndStroke(){
 //   ピクセルを控えるのではなく「ひと筆の軌跡」を控えておき、UNDOのときは
 //   元画像を貼り直して残りの筆を再生する（＝やり直し方式）。
 //   画面いっぱいのピクセルを何枚も抱えずに済むので、大きな写真でも重くならない。
-function eraseRebuild(){
-  if(!eraseWork) return;
-  const c = eraseWorkCtx;
+/* ★v241：noFix を立てて呼ぶと補正のプレビューを作り直さない。
+   ピンチの2本目の指が触れた瞬間にここを通るので、そこで作ると
+   ピンチの出だしが引っかかる。指が全部離れたときに作り直す（#POINTER の endPointer）。 */
+function eraseRebuild(noFix){
+  if(!eraseMask) return;
+  const c = eraseMaskCtx;
   c.setTransform(1,0,0,1,0,0);
   c.globalCompositeOperation = 'source-over';
   c.globalAlpha = 1;
-  c.clearRect(0, 0, eraseWork.width, eraseWork.height);
-  if(eraseBaseImg) c.drawImage(eraseBaseImg, 0, 0);
+  /* ★v233：マスクを空（透明）に戻してから筆を再生する。
+     v232までは元画像を貼り直していたが、マスクに元画像は入っていないので
+     消して空にするだけでよくなった（そのぶん軽い）。 */
+  c.clearRect(0, 0, eraseMask.width, eraseMask.height);
   eraseOps.forEach(eraseDrawOp);
   eraseDirty = eraseOps.length > 0;
+  if(noFix) eraseFixPreview = null;                 // ★v241：あとで作り直す
+  else      eraseSyncFixPreview();
   requestRender();
 }
+/* ★v236：貼り付けたマスクは何百本もの筆になるので、1本ずつ取り消していたら
+   UNDOを何百回も押すことになる。同じ grp を持つ筆はひとまとまりとして扱う。
+   自分で引いた筆には grp が無いので、これまでどおり1本ずつ取り消せる。 */
 function eraseUndo(){
+  eraseEndMaskMove();                               // ★v237：動かしかけは先に確定させる
   if(!eraseOps.length) return;
-  eraseRedoOps.push(eraseOps.pop());
-  eraseRebuild();                                   // 1つ減らして描き直し
+  const g = eraseOps[eraseOps.length-1].grp;
+  if(g){
+    while(eraseOps.length && eraseOps[eraseOps.length-1].grp === g) eraseRedoOps.push(eraseOps.pop());
+  } else {
+    eraseRedoOps.push(eraseOps.pop());
+  }
+  eraseRebuild();                                   // 減らして描き直し
   updateUndoButtons();
 }
 function eraseRedo(){
+  eraseEndMaskMove();                               // ★v237：同上
   if(!eraseRedoOps.length) return;
-  const op = eraseRedoOps.pop();
-  eraseOps.push(op);
-  eraseDrawOp(op);                                  // 足すだけなので描き直しは要らない
+  const g = eraseRedoOps[eraseRedoOps.length-1].grp;
+  if(g){
+    // 取り消したときと逆順に取り出すので、押し戻すと元の並びに戻る
+    while(eraseRedoOps.length && eraseRedoOps[eraseRedoOps.length-1].grp === g){
+      const op = eraseRedoOps.pop();
+      eraseOps.push(op);
+      eraseDrawOp(op);
+    }
+  } else {
+    const op = eraseRedoOps.pop();
+    eraseOps.push(op);
+    eraseDrawOp(op);                                // 足すだけなので描き直しは要らない
+  }
   eraseDirty = true;
   updateUndoButtons();
+  eraseSyncFixPreview();                            // ★v241
   requestRender();
 }
 
@@ -9980,8 +10632,15 @@ canvas.addEventListener('pointerdown', (e)=>{
     let onHandle = false;
     // v78：消しゴムモード中は、対象画像の上＝消す／外＝画面移動（パン）。
     //      トリミング中の「枠の外はパン」と同じ考え方。
+    /* ★v233：赤を隠している間（state.eraseHide）は、画像の上でも塗らずにパンへ回す。
+       目的は「見えていない所を消してしまわないこと」なので、何も起きないのではなく
+       画面移動として受け取る。隠したまま動かして隅まで確かめられる方が都合がよい。 */
     if(state.eraseMode && state.eraseTarget){
-      if(pointInNode(w.x, w.y, state.eraseTarget)){
+      if(eraseMoveGrp){
+        /* ★v237：貼り付けたマスクを動かしている最中は、画像の内でも外でも
+           ドラッグはマスクの移動になる（画面移動はピンチで行う）。 */
+        gesture = 'eraseMaskMove';
+      } else if(!state.eraseHide && pointInNode(w.x, w.y, state.eraseTarget)){
         eraseBeginStroke(w.x, w.y);   // v82：待たずにその場で消し始める
         gesture = 'imgErase';
       } else {
@@ -10123,6 +10782,11 @@ canvas.addEventListener('pointermove', (e)=>{
   } else if(gesture === 'imgErase'){
     const w = screenToWorld(sx, sy);
     eraseStrokeTo(w.x, w.y);
+  } else if(gesture === 'eraseMaskMove'){          // ★v237：貼り付けたマスクを指なりに動かす
+    const last = downInfo._lastScreen || downInfo.downScreen;
+    eraseDragMaskMove((e.clientX - last.x)/state.view.scale,
+                      (e.clientY - last.y)/state.view.scale);
+    downInfo._lastScreen = {x:e.clientX, y:e.clientY};
   } else if(gesture === 'canvasResize' || gesture === 'canvasMove'){   // ★v226：枠ごと移動も同じ関数へ
     /* ★v226：枠ごと移動のときだけ、小さい不感帯（DRAG_START_TOL）を越えてから動かす。
        サブモード中は枠の中を押した時点で掴んでしまうので、置いただけ・軽く触れただけで
@@ -10424,8 +11088,22 @@ function endPointer(e){
   }
   gesture = null; downInfo = null;
 }
-canvas.addEventListener('pointerup', endPointer);
-canvas.addEventListener('pointercancel', endPointer);
+/* ★v242：指が全部離れた時点で、補正のプレビューが外れたままなら作り直す。
+
+   v241は endPointer の「ピンチ終了」の分岐の中で作り直していたが、そこはほとんど通らなかった。
+   2本の指は普通わずかにずれて離れるので、1本目が離れた時点で pointers.size が 1 になって
+   パン継続へ移り、2本目が離れるときには gesture がもう 'zoom' ではなくなっている。
+   ＝どちらの道でも作り直しに届かず、画面を動かすと補正前の赤に戻ったままになっていた。
+
+   ここは pointerup／pointercancel の出口なので、パン・ピンチ・描きかけの中断のどれで抜けても
+   必ず通る。作り直しが要らないとき（プレビューが生きている・まだ何も塗っていない・補正0）は
+   eraseSyncFixPreview() の中ですぐ戻るので、ふつうの描き終わりに二度手間は起きない。 */
+function endPointerAndSyncFix(e){
+  endPointer(e);
+  if(pointers.size === 0 && state.eraseMode && !eraseFixPreview) eraseSyncFixPreview();
+}
+canvas.addEventListener('pointerup', endPointerAndSyncFix);
+canvas.addEventListener('pointercancel', endPointerAndSyncFix);
 
 function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
 function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
@@ -10872,6 +11550,8 @@ function stampFileName(ext){
    引数を省略すると、モーダルで最後に選んだ内容で書き出す。 */
 async function exportImage(fmt, quality){
   const isJpeg = ((fmt || exportFmt) === 'jpeg');
+  // ★v239：透過はPNGのときだけ。JPEGを選んでいたら設定に関わらず下地を塗る。
+  const keepAlpha = !isJpeg && exportAlpha;
   const q      = (quality==null ? exportQuality/100 : quality);
   const mime   = isJpeg ? 'image/jpeg' : 'image/png';
   const ext    = isJpeg ? '.jpeg' : '.png';
@@ -10895,14 +11575,18 @@ async function exportImage(fmt, quality){
        既定の 'low' は速いかわりに輪郭が甘くなるので、書き出しでは 'high' にする。 */
     ox.imageSmoothingEnabled = true;
     ox.imageSmoothingQuality = 'high';
-    ox.fillStyle=state.project.bgColor||'#fff'; ox.fillRect(0,0,cw,ch);
+    /* ★v239：背景の下地を塗るのはここ。透明で書き出すときは、この1行を飛ばすだけでよい。
+       作ったばかりのキャンバスは全面が透明なので、そこへオブジェクトを描けば
+       何も置いていない所と消しゴムで抜いた所がそのまま透明で残る。 */
+    if(!keepAlpha){ ox.fillStyle=state.project.bgColor||'#fff'; ox.fillRect(0,0,cw,ch); }
     drawTreeTo(ox);
     oc.toBlob(async (blob)=>{
       if(!blob){ toast('書き出しに失敗しました'); return; }
       try{
         await writeBlob(target, blob, filename);
         markSessionClean();   // ★v215：書き出して区切りが付いた
-        toast(isJpeg ? 'JPEGで書き出しました' : 'PNGで書き出しました');
+        toast(isJpeg ? 'JPEGで書き出しました'
+                     : (keepAlpha ? 'PNG（背景透明）で書き出しました' : 'PNGで書き出しました'));
       }catch(err){ console.error(err); toast('書き出しに失敗しました'); }
     }, mime, isJpeg ? q : undefined);
   };
@@ -10918,6 +11602,7 @@ async function exportImage(fmt, quality){
    選んだ内容はページを開いている間だけ覚えている（保存はしない）。 */
 let exportFmt = 'png';       // 'png' | 'jpeg'
 let exportQuality = 90;      // 10〜100
+let exportAlpha = false;     // ★v239：背景を塗らずに透明のまま書き出すか（PNGのみ）
 function renderExportModal(){
   const isJpeg = (exportFmt === 'jpeg');
   document.getElementById('expFmtPng').classList.toggle('on', !isJpeg);
@@ -10925,9 +11610,15 @@ function renderExportModal(){
   document.getElementById('expQualityRow').hidden = !isJpeg;
   document.getElementById('expQuality').value = exportQuality;
   document.getElementById('expQualityVal').textContent = exportQuality;
+  /* ★v239：透過はPNGだけの機能。JPEGには透明を持つ仕組みが無いので行ごと隠す。
+     切り替えても exportAlpha の値は残しておき、PNGへ戻したときに前の設定が生きるようにする。 */
+  document.getElementById('expAlphaRow').hidden = isJpeg;
+  document.getElementById('expAlpha').classList.toggle('on', exportAlpha);
   document.getElementById('expFmtNote').textContent = isJpeg
-    ? '画質を下げるとファイルは小さくなりますが、細い線や文字のふちが荒れます。'
-    : '画質は落ちません。そのぶんファイルは大きくなります。';
+    ? '画質を下げるとファイルは小さくなりますが、細い線や文字のふちが荒れます。JPEGは背景を透明にできません。'
+    : (exportAlpha
+        ? '消した所や何も置いていない所は透明のまま書き出します。背景色は塗りません。'
+        : '画質は落ちません。そのぶんファイルは大きくなります。');
 }
 function openExportModal(){
   renderExportModal();
@@ -13188,6 +13879,9 @@ function bindEvents(){
     else if(state.eraseMode)   eraseRedo();
     else                       redo();
   });
+  document.getElementById('maskEyeBtn').addEventListener('click', toggleMaskEye);   // ★v233
+  document.getElementById('erasePenBtn').addEventListener('click', toggleErasePen); // ★v234
+  document.getElementById('erasePasteBtn').addEventListener('click', erasePasteBtnTap); // ★v236／★v237
   document.getElementById('modeOkBtn').addEventListener('click', modeConfirm);
   document.getElementById('modeCancelBtn').addEventListener('click', modeCancel);
   // ヘッダー中央の表示をタップしたとき。
@@ -13255,6 +13949,7 @@ function bindEvents(){
   document.getElementById('expCancel').addEventListener('click', backToMenuFromExport);
   document.getElementById('expFmtPng').addEventListener('click', ()=>{ exportFmt='png';  renderExportModal(); });
   document.getElementById('expFmtJpg').addEventListener('click', ()=>{ exportFmt='jpeg'; renderExportModal(); });
+  document.getElementById('expAlpha').addEventListener('click', ()=>{ exportAlpha = !exportAlpha; renderExportModal(); });   // ★v239
   document.getElementById('expQuality').addEventListener('input', (e)=>{
     exportQuality = Math.round(+e.target.value) || 90;
     document.getElementById('expQualityVal').textContent = exportQuality;
