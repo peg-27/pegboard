@@ -19,7 +19,7 @@
      PWA（v200で追加）
      app-version はデプロイのたびに上げること。末尾の更新チェックがこの値を見ている。
      ══════════════════════════════ -->
-<meta name="app-version" content="v227">
+<meta name="app-version" content="v231">
 <meta name="theme-color" content="#22272B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -3492,7 +3492,7 @@ function render(){
        それに選択枠やハンドル（描画ラッパー側）は消えずに残る＝プレビュー中も編集できる。
      ・描きかけのペイント線（drawActiveStroke）は元々アートボード内に切り抜かれているので、
        ここで面倒を見る必要はない。 */
-  if(state.previewOn){
+  if(previewActive()){
     ctx.save();
     ctx.setTransform(1,0,0,1,0,0);                       // 画面（ビットマップ）座標へ
     const s  = state.view.scale * DPR;
@@ -3516,11 +3516,34 @@ function render(){
     ctx.restore();
   }
 
-  // 作業領域の枠（外側を少し暗く）
+  /* ── 作業領域の枠 ────────────────────────────────
+     ★v229：枠線の引き方を2点変えた（PEG報告：縁ぴったりに写真を置くと黒い線が目立つ）。
+       ① 太さ 1/scale → 1/(scale*DPR)。前者は「CSSの1px」で、S23（DPR=3）では
+          実画面3ドットの太い線になっていた。後者はグリッドと同じ「実画面1ドット」。
+       ② 位置をアートボードの完全に外側へ逃がした。strokeRect は線の中心が
+          指定した辺に来るので、今までは線の内側半分が絵の縁に重なって
+          いちばん外の列を暗くしていた。半分の太さぶん外へずらせば絵には一切かからない。
+     枠線そのものを消さないのは、はみ出したオブジェクトを置いたときに
+     「ここが境界」と分かる目印が要るため（PEGの指定）。線はツリーの後に引くので、
+     はみ出した絵の上にもちゃんと乗る。 */
+  /* ★v231：明暗2本を「重ねず、上下に並べて」引く。
+     v230は同じ1本の中で色を交互にする作りだったが、半透明の白い実線の上に
+     半透明の黒い破線を重ねていたため、黒い部分が下の白と混ざって中間のグレーになり、
+     どちらも芝の色に近づいて消えていた（PEG報告）。重ね塗りをやめ、
+     不透明な2本を隣り合わせに置けばこの混色は起きない。
+     ・内側（アートボードのすぐ外）＝明るい線
+     ・その外側＝暗い線
+       明るい方を絵に近い側へ置くと、縁ぴったりに写真を置いたときに
+       黒が1本ぶん離れるので「写真に黒い輪郭が付いた」ようには見えない。
+     ・合わせて実画面2ドット。v228までの単色3ドットより細く、かつ絵には一切かからない。 */
   ctx.save();
-  ctx.lineWidth = 1/state.view.scale;
-  ctx.strokeStyle = '#00000055';
-  ctx.strokeRect(ab.x, ab.y, ab.w, ab.h);
+  const _u = 1/(state.view.scale * DPR);    // 実画面1ドット（ワールド座標での長さ）
+  const _w = EDGE_W * _u;                   // 線1本ぶんの太さ
+  ctx.lineWidth = _w;
+  ctx.strokeStyle = EDGE_COLOR_L;           // 内側＝明るい線
+  ctx.strokeRect(ab.x - _w*0.5, ab.y - _w*0.5, ab.w + _w,   ab.h + _w);
+  ctx.strokeStyle = EDGE_COLOR_D;           // 外側＝暗い線
+  ctx.strokeRect(ab.x - _w*1.5, ab.y - _w*1.5, ab.w + _w*3, ab.h + _w*3);
   ctx.restore();
 
   /* キャンバス全体グリッド（ONのとき。ピンチで一緒に拡大／線は常に画面上1px）
@@ -3533,6 +3556,17 @@ function render(){
 
 /* ── グリッドの見た目（v118）───────────────────────────
    ここの3つを変えれば見た目は変わる。他の場所は触らなくてよい。 */
+/* ── ★v231：アートボードの枠線の見た目。ここの3つを変えれば見た目は変わる ──
+   明暗2本を隣り合わせに引く（重ねない）。どんな色の絵の上に乗っても、
+   明るい側か暗い側のどちらかが必ず残るのが狙い。
+   ★2色は不透明のままにしておくこと。半透明にすると下の絵と混ざって
+     両方とも中間色になり、いちばん見せたい写真の上で消える（v230の失敗）。
+     薄くしたい場合は色そのものを灰色寄り（例 #dddddd／#333333）にして調整する。
+   ・EDGE_W を 2 にすると合計4ドット。目立たせたいときはここを上げる */
+const EDGE_COLOR_D = '#000000';   // 外側の線（明るい絵の上ではこちらが見える）
+const EDGE_COLOR_L = '#ffffff';   // 内側の線（暗い絵の上ではこちらが見える）
+const EDGE_W       = 1;           // 線1本ぶんの太さ（実画面ドット）。合計はこの2倍
+
 const GRID_STEP  = 50;          // 格子の間隔（ワールド座標px）
 const GRID_COLOR = '#00d5e0';   // 格子の色（シアン）
 const GRID_CROSS = '#ff0000';   // 中央十字の色（赤）
@@ -3625,14 +3659,22 @@ function drawNode(node, parentOpacity){
        直し方は、いったんビュー変換だけの状態へ戻して枠を作り、すぐ元の変形へ戻すだけ。
        切り抜き領域は画面上の領域として残るので、そのあとの描画には正しく効く。
        ※この方法なら、レイヤーやグループ側が回っている場合も一緒に直る。 */
-    const _ab = artboardRect();
-    const _m  = ctx.getTransform();                  // いまの（変形込みの）行列を控える
-    const _sc = state.view.scale * DPR;
-    ctx.setTransform(_sc, 0, 0, _sc, state.view.offsetX*DPR, state.view.offsetY*DPR); // 変形なしへ
-    ctx.beginPath();
-    ctx.rect(_ab.x, _ab.y, _ab.w, _ab.h);
-    ctx.clip();
-    ctx.setTransform(_m);                            // 元の変形へ戻す
+    /* ★v229：この切り抜きを「常に」から「プレビューONのときだけ」に変えた。
+       開発初期は、描線がキャンバスからはみ出すと書き出しの仕上がりが想像しにくい、
+       という理由で常に切り抜いていた。その後プレビューボタン（v148）ができて
+       隠す／見せるを自分で切り替えられるようになったので、ペイントも他と同じ
+       「基本は見せる・プレビューONで隠す」にそろえた（PEGの指定）。
+       ※プレビューONのときの見た目は今までとまったく同じ。 */
+    if(previewActive()){
+      const _ab = artboardRect();
+      const _m  = ctx.getTransform();                // いまの（変形込みの）行列を控える
+      const _sc = state.view.scale * DPR;
+      ctx.setTransform(_sc, 0, 0, _sc, state.view.offsetX*DPR, state.view.offsetY*DPR); // 変形なしへ
+      ctx.beginPath();
+      ctx.rect(_ab.x, _ab.y, _ab.w, _ab.h);
+      ctx.clip();
+      ctx.setTransform(_m);                          // 元の変形へ戻す
+    }
     const erased = (eraseState && eraseState.touched.get(node)) || null;
     renderPaintNode(ctx, node, erased);
   } else if(node.type === 'image'){
@@ -4189,6 +4231,32 @@ function togglePreview(){
   const b = document.getElementById('previewToggle');
   if(b) b.classList.toggle('on', state.previewOn);
   requestRender();
+}
+
+/* ── ★v228：プレビューを「今この画面で効かせてよいか」の判定 ─────────
+   プレビューボタン（#previewToggle）は二段目の #crumbBar の中にある。
+   ところがテキストモードとガイドモードでは、その二段目が丸ごと別の行
+   （#textToolRow／#guideRow2）に差し替わるので、ボタンが画面から消える。
+   ONのまま入るとキャンバス枠の外が隠れたままで、消す手立てが無くなっていた（PEG報告）。
+
+   直し方は「入るときに state.previewOn を false にする」ではなく、
+   「ボタンが出ていない画面ではプレビューを効かせない」という形にした。
+   ・state.previewOn には触らないので、テキスト／ガイドから戻れば元通りONに復帰する
+     （メイン画面で入れた設定が、モードに入っただけで消えてしまわない）
+   ・ONとOFFがずれる余地が無い（入口と出口の両方に処理を置かなくて済む）
+
+   ※ 回転・トリミング・消しゴム・キャンバスサイズの各モードは、
+     テキストから入った場合でも二段目は #crumbBar のままでボタンが出ている。
+     だからここでは除外しない＝今まで通りプレビューが効く。
+     判定の並びは updateToolUI と同じ順序にそろえてある。 */
+function previewActive(){
+  if(!state.previewOn) return false;
+  const inGuide = !!state.guideMode;
+  if(inGuide) return false;                                     // ガイドモード → #guideRow2 に差し替わる
+  const inMode  = !!(state.rotateMode || state.cropMode || state.eraseMode || state.canvasResizeMode);
+  const inText  = (state.tool==='text' && !inMode);
+  if(inText) return false;                                      // テキストモード → #textToolRow に差し替わる
+  return true;
 }
 
 // キャンバスのタップ位置で「降りる/選ぶ/編集」を判定
@@ -6241,10 +6309,15 @@ function drawActiveStroke(){
   const sc = state.view.scale * DPR;
   ctx.setTransform(sc,0,0,sc, state.view.offsetX*DPR, state.view.offsetY*DPR);
   ctx.save();
-  // 描画中プレビューもアートボード内だけに表示
-  ctx.beginPath();
-  ctx.rect(0, 0, state.project.canvasW, state.project.canvasH);
-  ctx.clip();
+  /* ★v229：描きかけの線も、上の drawNode と同じ条件にそろえる。
+     ここは render の一番最後（_render のあと）で描かれるので、プレビューONのときに
+     枠外を消している clearRect よりも後になる。つまりこの切り抜きを外してしまうと
+     「描いている最中だけ枠外にはみ出す」ことになるため、ONのときは必ず残すこと。 */
+  if(previewActive()){
+    ctx.beginPath();
+    ctx.rect(0, 0, state.project.canvasW, state.project.canvasH);
+    ctx.clip();
+  }
   ctx.globalAlpha = (activeStroke.opacity==null) ? 1 : activeStroke.opacity;
   if(activeStroke.brush === 'pen'){
     const pts = computePenPoints(activeStroke._raw, activeStroke.width, false); // 抜きは確定時に付与
@@ -11914,6 +11987,10 @@ function updateToolUI(){
      ・見張り役が呼ばれる順番がブラウザ任せなので、確実な場所を1つ持っておくため
      すでに大きさが合っていれば resizeCanvas は何もしないので、二重でも無駄にならない。 */
   resizeCanvas(true);
+  /* ★v228：モードの出入りでプレビューの効き（previewActive）が変わるので、
+     ここで必ず描き直す。resizeCanvas は枠の大きさが変わらないと何もしないため、
+     それだけに任せると「テキストへ入ったのに外側が隠れたまま」の一コマが残る。 */
+  requestRender();
 }
 function closeBrushPanels(){
   const b=document.getElementById('brushPanel'); if(b) b.hidden=true;
