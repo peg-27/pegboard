@@ -19,7 +19,7 @@
      PWA（v200で追加）
      app-version はデプロイのたびに上げること。末尾の更新チェックがこの値を見ている。
      ══════════════════════════════ -->
-<meta name="app-version" content="v231">
+<meta name="app-version" content="v232">
 <meta name="theme-color" content="#22272B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -1923,7 +1923,17 @@
      ★.mlabel（グループ小見出し）はv153で使わなくなったが、
        将来また使うかもしれないので定義は残してある。 */
   .mgroup{ display:flex; flex-direction:column; gap:8px; }
-  .mgroup + .mgroup{ margin-top:8px; }
+  /* ★v232（要望③）：まとまり同士のあいだに細い罫線を入れる。
+     余白だけでは保存系と開く系の切れ目が伝わりにくかった（PEG報告）。
+     線は ::before で作る＝まとまりの先頭に並ぶ1本の帯。.mgroup は縦のflexなので
+     gap:8px が線の下にも効き、線の上下におのずと同じくらいの間隔ができる。
+     色は #4a4a4a。区切り線の var(--line)=#383838 はシートの背景 var(--bar2)=#2c2c2c と
+     近すぎて、細い線にすると見えないため（スライダーの棒と同じ明るさに合わせてある）。 */
+  .mgroup + .mgroup{ margin-top:4px; }
+  .mgroup + .mgroup::before{
+    content:""; display:block; align-self:stretch;
+    height:1px; background:#4a4a4a; margin:0 2px 6px;
+  }
   .mlabel{
     font-size:11px; letter-spacing:.08em; color:var(--text-dim);
     padding:0 2px 2px;
@@ -4347,6 +4357,32 @@ function marqueeRect(){
   return { x, y, w:Math.abs(marquee.x1-marquee.x0), h:Math.abs(marquee.y1-marquee.y0) };
 }
 
+/* ── ★v232：ドラッグでの単一選択（要望②）────────────────────
+   タップだけで選ぶ作りだと、細い線は少し狙いを外しただけで
+   「何もない所のタップ＝選択解除」になり、ペイント中はそのまま描画に戻ってしまう。
+   そこで、指でなぞった矩形に触れたもののうち一番手前の1つを選べるようにした。
+   枠の判定は複数選択の範囲選択と同じ nodesInRect()（bboxの重なり）を使う。
+
+   ★引き換えに、この状態での1本指の空きドラッグ（画面移動）は無くなる（PEGの了承済み）。
+     画面を動かしたいときは2本指で。ピンチは今までどおり動かしながら拡大縮小できる。 */
+function topNodeInRect(rect){
+  const list = nodesInRect(rect);          // 前から後ろの順（後ろ＝前面）で入っている
+  return list.length ? list[list.length-1] : null;
+}
+/* いま、空きドラッグを「選択」に使ってよい場面か。
+   ・選択ツール（通常モード）と、ペイントの選択サブモード → 使う
+   ・複数選択モード → 今までどおり範囲選択（marquee）が担当するので使わない
+   ・回転／トリミング／消しゴム／キャンバスツール／ガイドモード → 枠の外は画面移動のままにする
+   ・テキストモード → 選択の判定が別（handleTextModeTap）なので触らない */
+function canPickDrag(){
+  if(state.multi) return false;
+  if(state.guideMode) return false;
+  if(state.rotateMode || state.cropMode || state.eraseMode || state.canvasResizeMode) return false;
+  if(state.tool === 'select') return true;
+  if(state.tool === 'paint' && state.paintSelect) return true;
+  return false;
+}
+
 /* ══════════════════════════════
    #GROUP  グループ（★v144）
    ══════════════════════════════
@@ -6231,8 +6267,22 @@ function strokePenPathPts(c, pts){
   // 1枚の輪郭ではなく「断片の集まり」を同じ向きにそろえて足し、nonzeroで一度に塗る。
   const sc = ctxScale(c);
   c.beginPath();
-  for(let i=0;i<n-1;i++){               // 隣り合う点ごとの四角い断片
-    addPolySub(c, [left[i], left[i+1], right[i+1], right[i]]);
+  /* ★v232（不具合修正）：断片は四角のままではなく、三角形2枚に割って足す。
+     急カーブでは、カーブの内側で帯の左右のふちが交差して、四角い断片が
+     「ねじれた蝶ネクタイ型」になる。この形は左右の羽根で向きが逆なので、
+     addPolySub() の「面積の符号を見て向きをそろえる」やり方では直せない
+     （符号は2枚の羽根の差し引きで決まるため、片方は必ず逆向きのまま残る）。
+     逆向きの羽根は nonzero 塗りで隣の断片の塗りを打ち消し、線の内側が
+     白く抜ける（PEG報告）。三角形は自己交差しないので向きの判定が必ず正しくなり、
+     どの断片も必ず「塗る側」になって打ち消しが起きない。
+     ★ピンチで白抜けが出たり消えたりしていたのは、下の継ぎ目の丸が
+       「画面上で0.1px以上へこむ所だけ」という条件だったため。拡大すると丸が増えて
+       穴を塞ぎ、縮めると足されずに穴が見えていた。書き出しは等倍なので穴が残る。
+     ★ねじれた断片だけを割る手もあるが、判定を足すより常に割るほうが単純で、
+       点の数も1.5倍で済む（四角4点 → 三角3点×2）。 */
+  for(let i=0;i<n-1;i++){               // 隣り合う点ごとの断片（三角形2枚）
+    addPolySub(c, [left[i], left[i+1], right[i+1]]);
+    addPolySub(c, [left[i], right[i+1], right[i]]);
   }
   // ★v199：両端の丸は目に入るので、角数を多めに取る。
   addCircleSub(c, pts[0].x,   pts[0].y,   hw[0],   circleFacets(hw[0],   sc, 180));
@@ -9092,11 +9142,13 @@ function updateUndoButtons(){
    #GESTURE  ジェスチャー
    ══════════════════════════════ */
 const pointers = new Map();
-let gesture = null; // 'pan' | 'move' | 'paint' | 'zoom' | 'tap?' | 'pendingMulti' | 'moveMulti' | 'marquee'
+let gesture = null; // 'pan' | 'move' | 'paint' | 'zoom' | 'tap?' | 'pendingMulti' | 'moveMulti' | 'marquee' | 'pickMarquee'
 let downInfo = null;
 let pinch = null;
 let marquee = null;       // 範囲選択の矩形（ワールド座標 {x0,y0,x1,y1}）
 let marqueeBase = [];     // 範囲選択開始時点の選択（範囲はこれに追加していく）
+let pickBase = [];        // ★v232：ドラッグ選択を始めた時点の選択（タップだったときに戻す用）
+let pickLast;             // ★v232：いまドラッグ選択で選んでいるもの。変わった時だけ選択し直す
 /* ★v179_2：範囲選択中の「選ばれている数の区分」（0＝なし／1＝単一／2＝複数）。
    ドラッグ中に区分をまたいだときだけヘッダーを組み直すために覚えておく。
    毎フレーム updateMultiHeader() を呼ぶと、中でレイヤーパネルの作り直しまで
@@ -10033,6 +10085,13 @@ canvas.addEventListener('pointermove', (e)=>{
       downInfo._pend = 'pendingSelect';
       if(state.selNodes.length && state.selNodes.some(n=> pointInNode(downInfo.wx, downInfo.wy, n))){
         gesture = (state.selNodes.length > 1) ? 'moveMulti' : 'move';
+      } else if(canPickDrag()){
+        /* ★v232（要望②）：選んでいるものの上以外から引いたら「ドラッグで選ぶ」。
+           ここが今までの画面移動（パン）の席。 */
+        gesture = 'pickMarquee';
+        pickBase = state.selNodes.slice();
+        pickLast = undefined;                   // 最初の1フレームで必ず選び直させる
+        marquee = { x0:downInfo.wx, y0:downInfo.wy, x1:downInfo.wx, y1:downInfo.wy };
       } else {
         gesture = 'pan';
       }
@@ -10149,6 +10208,19 @@ canvas.addEventListener('pointermove', (e)=>{
   } else if(gesture === 'cropResize' || gesture === 'cropMove'){
     const w = screenToWorld(sx, sy);
     applyCropDrag(w.x, w.y);
+  } else if(gesture === 'pickMarquee'){
+    /* ★v232（要望②）：枠に触れたもののうち一番手前の1つを、なぞりながら選び続ける。
+       枠を広げるたびに選ぶ相手が変わるので、指を離す前に狙いを直せる。
+       setSelection() はヘッダーやレイヤーパネルまで作り直すので、
+       選ぶ相手が変わったフレームだけ呼ぶ。 */
+    const w = screenToWorld(sx, sy);
+    marquee.x1 = w.x; marquee.y1 = w.y;
+    const hit = topNodeInRect(marqueeRect());
+    if(hit !== pickLast){
+      pickLast = hit;
+      setSelection(hit ? expandByGroup([hit]) : []);   // 何も触れていなければ選択なし
+    }
+    requestRender();
   } else if(gesture === 'marquee'){
     const w = screenToWorld(sx, sy);
     marquee.x1 = w.x; marquee.y1 = w.y;
@@ -10298,6 +10370,18 @@ function endPointer(e){
     }
   } else if(wasGesture === 'cropResize' || wasGesture === 'cropMove'){
     cropDrag = null;                            // 枠は state.cropRect に持つ一時データ。確定(段階B)まではUNDO対象外。
+  } else if(wasGesture === 'pickMarquee'){
+    /* ★v232（要望②）：ドラッグ選択の終わり。選んだものはそのまま残す。
+       ペイントの選択サブモードも続いたまま（終わるのは「何もない所のタップ」だけ）。 */
+    marquee = null;
+    if(!di.moved){
+      /* 12px（TAP_MOVE_TOL）に届かないまま離した＝実はタップだった。
+         範囲選択（marquee）と同じ後始末で、囲んだぶんを捨ててタップとして処理し直す。
+         こうしないと、末端の再タップやペイント中の「空きタップで描画へ戻る」が効かなくなる。 */
+      setSelection(pickBase.slice());
+      finishPendingTap(di);
+    }
+    requestRender();
   } else if(wasGesture === 'marquee'){
     marquee = null;
     marqueeBand = -1;
